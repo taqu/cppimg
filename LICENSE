@@ -22,3 +22,9 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
 For more information, please refer to <http://unlicense.org>
+
+A postion of this software is under other license as below.
+ deflate.h:
+   Original software is under Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler zlib license,
+   modified by Copyright (C) 2017 Takuro Sakai.
+

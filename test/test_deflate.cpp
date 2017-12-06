@@ -1,5 +1,4 @@
 #include "catch.hpp"
-#define CPPZ_IMPLEMENTATION
 #include "../deflate.h"
 
 //#define CPPZ_TEST_ZLIB

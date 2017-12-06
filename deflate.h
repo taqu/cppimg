@@ -29,11 +29,14 @@ The data format used by the zlib library is described by RFCs (Request for
 Comments) 1950 to 1952 in the files http://tools.ietf.org/html/rfc1950
 (zlib format), rfc1951 (deflate format) and rfc1952 (gzip format).
 */
-/**
-@file deflate.h
-
+/*
 The above is the original zlib's license.
 This is a portion of deflate/inflate codes extracted from the zlib library.
+So, this codes is published under zlib/libpng license, modified by
+Copyright (C) 2017 Takuro Sakai
+*/
+/**
+@file deflate.h
 
 USAGE:
   Put '#define CPPZ_IMPLEMENTATION' before including this file to create the implementation.
@@ -43,8 +46,6 @@ USAGE:
 #include <cstdint>
 #include <malloc.h>
 #include <memory.h>
-
-//#define CPPZ_IMPLEMENTATION
 
 namespace cppz
 {
@@ -2145,7 +2146,7 @@ namespace
                 here.op_ = 0;
                 here.val_ = work[sym];
             }else if(match<=work[sym]){
-                here.op_ = static_cast<u8>(extra[work[sym]]);
+                here.op_ = static_cast<u8>(extra[work[sym] - match]);
                 here.val_ = base[work[sym]-match];
             }else{
                 here.op_ = (32+64);
@@ -2203,7 +2204,7 @@ namespace
                 (*table)[low].val_ = static_cast<u16>(next - *table);
             }
         }//for(;;)
-        if(huff<=0){
+        if(1<huff){
             here.op_ = 64;
             here.bits_ = static_cast<u8>(len-drop);
             here.val_ = 0;
@@ -3165,9 +3166,7 @@ INF_LEAVE:
     //
     s32 cppz_inflateEnd(Stream& stream)
     {
-        if(inflateStateCheck(stream)){
-            return CPPZ_STREAM_ERROR;
-        }
+        s32 result = inflateStateCheck(stream);
         if(CPPZ_NULL != stream.inflate_){
             stream.free_func_(stream.inflate_, stream.user_);
             stream.inflate_ = CPPZ_NULL;
@@ -3175,7 +3174,7 @@ INF_LEAVE:
             stream.alloc_func_ = CPPZ_NULL;
             stream.user_ = CPPZ_NULL;
         }
-        return CPPZ_OK;
+        return result;
     }
 #endif
 }
