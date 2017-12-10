@@ -31,7 +31,7 @@ namespace
             cppimg::OFStream ofile;
             SPRINTF(buffer, "%s%s", directory, dst);
             if(ofile.open(buffer)){
-                cppimg::PPM::write(ofile, width, height, colorType, image);
+                cppimg::PNG::write(ofile, width, height, colorType, image);
             }
         }
         delete[] image;
@@ -41,9 +41,9 @@ namespace
 TEST_CASE("Read/Write PNG" "[PNG]")
 {
     SECTION("test00.png"){
-        test("test00.png", "out00.ppm", "../data/");
+        test("test00.png", "out00.png", "../data/");
     }
     SECTION("test01.png"){
-        test("test01.png", "out01.ppm", "../data/");
+        test("test01.png", "out01.png", "../data/");
     }
 }

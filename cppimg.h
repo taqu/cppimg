@@ -39,10 +39,13 @@ put '#define CPPIMG_IMPLEMENTATION' before including this file to create the imp
 
 //#define CPPIMG_IMPLEMENTATION
 
+#include "miniz/miniz.h"
+
 #ifdef CPPIMG_IMPLEMENTATION
-#define CPPZ_IMPLEMENTATION
+#include "miniz/miniz.c"
+#include "miniz/miniz_tdef.c"
+#include "miniz/miniz_tinfl.c"
 #endif
-#include "deflate.h"
 
 namespace cppimg
 {
@@ -618,6 +621,16 @@ namespace cppimg
         */
         static bool read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream);
 
+        /**
+        @brief
+        @return Success:true, Fail:false
+        @param width
+        @param height
+        @param image
+        @param colorType
+        @param stream
+        */
+        static bool write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image);
     private:
         static const u64 Signature = 0x0A1A0A0D474E5089U;
 
@@ -641,7 +654,8 @@ namespace cppimg
 
         struct ChunkIHDR : public Chunk
         {
-            static const u32 Type = 'RDHI';
+            static const u32 Type = 0x52444849U;//'RDHI';
+            static const u32 Size = 13;
             bool read(IStream& stream);
 
             u32 width_;
@@ -655,7 +669,7 @@ namespace cppimg
 
         struct ChunkPLTE : public Chunk
         {
-            static const u32 Type = 'ETLP';
+            static const u32 Type = 0x45544C50U;//'ETLP';
             static const u32 MaxSize = 256;
             bool read(IStream& stream);
 
@@ -667,37 +681,35 @@ namespace cppimg
 
         struct ChunkIDAT : public Chunk
         {
-            static const u32 Type = 'TADI';
+            static const u32 Type = 0x54414449U;//'TADI';
             static const u32 BufferSize = 1024;
 
-            ChunkIDAT(bool deflate, void* image, u32 width, u32 height, s32 color, s32 alpha);
+            ChunkIDAT(bool deflate, u32 width, u32 height, s32 color, s32 alpha);
             ~ChunkIDAT();
 
             bool initialize();
             bool terminate();
-            bool read(IStream& stream);
-
-            void filter();
+            bool read(void* image, IStream& stream);
+            bool write(OStream& stream, s32 height, const u8* image);
+            void filter(u8* image);
 
             bool deflate_;
-            cppz::Stream stream_;
+            mz_stream stream_;
             u32 totalSize_;
             u32 totalCount_;
             u32 color_;
             u32 alpha_;
             u32 width_;
-            u8* image_;
             u32 scanlineSize_; //size in bytes
             u8* scanline_;
             u32 scanlineOffset_;
             s32 filterFlag_;
-            u8 src_[BufferSize];
             u8 dst_[BufferSize];
         };
 
         struct ChunkIEND : public Chunk
         {
-            static const u32 Type = 'DNEI';
+            static const u32 Type = 0x444E4549U;//'DNEI';
         };
 
         static inline u16 reverse(u16 x);
@@ -711,6 +723,7 @@ namespace cppimg
 
         template<class T>
         static bool readHeader(T& chunk, IStream& stream);
+        static bool writeChunk(OStream& stream, u32 type, u32 size, const void* data);
     };
 
 }
@@ -905,6 +918,10 @@ namespace
 
     bool BMP::read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream)
     {
+        if(!stream.valid()){
+            return false;
+        }
+
         SeekSet seekSet(stream.tell(), &stream);
 
         u16 magic;
@@ -995,6 +1012,9 @@ namespace
     bool BMP::write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image)
     {
         CPPIMG_ASSERT(CPPIMG_NULL != image);
+        if(!stream.valid()){
+            return false;
+        }
         SeekSet seekSet(stream.tell(), &stream);
         HEADER header = {0};
         INFOHEADER infoHeader = {0};
@@ -1321,6 +1341,10 @@ namespace
 
     bool TGA::read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream)
     {
+        if(!stream.valid()){
+            return false;
+        }
+
         SeekSet seekSet(stream.tell(), &stream);
 
         u8 tgaHeader[TGA_HEADER_SIZE];
@@ -1392,6 +1416,10 @@ namespace
 
     bool TGA::write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image)
     {
+        CPPIMG_ASSERT(CPPIMG_NULL != image);
+        if(!stream.valid()){
+            return false;
+        }
         SeekSet seekSet(stream.tell(), &stream);
         u8 tgaHeader[TGA_HEADER_SIZE] = {0};
 
@@ -1540,11 +1568,10 @@ namespace
         if(CPPIMG_NULL == image){
             return true;
         }
-        seekSet.clear();
 
         Chunk chunk;
         ChunkPLTE chunkPLTE;
-        ChunkIDAT chunkIDAT(false, image, chunkIHDR.width_, chunkIHDR.height_, color, alpha);
+        ChunkIDAT chunkIDAT(false, chunkIHDR.width_, chunkIHDR.height_, color, alpha);
         if(!chunkIDAT.initialize()){
             return false;
         }
@@ -1564,7 +1591,7 @@ namespace
                 break;
             case ChunkIDAT::Type:
                 setChunkHeader(chunkIDAT, chunk);
-                if(!chunkIDAT.read(stream)){
+                if(!chunkIDAT.read(image, stream)){
                     return false;
                 }
                 break;
@@ -1579,6 +1606,8 @@ namespace
             }
         }while(loop);
 
+        chunkIDAT.terminate();
+
         u8* uimage = reinterpret_cast<u8*>(image);
         switch(chunkIHDR.colorType_){
         case PNG::ColorType_Index:
@@ -1592,6 +1621,70 @@ namespace
             }
             break;
         }
+        seekSet.clear();
+        return true;
+    }
+
+    bool PNG::write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image)
+    {
+        CPPIMG_ASSERT(CPPIMG_NULL != image);
+        if(!stream.valid()){
+            return false;
+        }
+
+        SeekSet seekSet(stream.tell(), &stream);
+
+        //Write signature
+        u64 signature = Signature;
+        if(stream.write(sizeof(u64), &signature)<0){
+            return false;
+        }
+
+        //Write header
+        ChunkIHDR chunkIHDR;
+        chunkIHDR.width_ = reverse(static_cast<u32>(width));
+        chunkIHDR.height_ = reverse(static_cast<u32>(height));
+        chunkIHDR.bitDepth_ = 8;
+        chunkIHDR.compression_ = 0;
+        chunkIHDR.filter_ = 0;
+        chunkIHDR.interlace_ = 0;
+
+        s32 color;
+        s32 alpha = 0;
+        switch(colorType)
+        {
+        case ColorType_GRAY:
+            chunkIHDR.colorType_ = PNG::ColorType_Gray;
+            color = 1;
+            break;
+        case ColorType_RGB:
+            chunkIHDR.colorType_ = PNG::ColorType_True;
+            color = 3;
+            break;
+        case ColorType_RGBA:
+            chunkIHDR.colorType_ = PNG::ColorType_TrueAlpha;
+            color = 3;
+            alpha = 1;
+            break;
+        default:
+            return false;
+        }
+        if(!writeChunk(stream, ChunkIHDR::Type, ChunkIHDR::Size, &chunkIHDR.width_)){
+            return false;
+        }
+
+        ChunkIDAT chunkIDAT(true, width, height, color, alpha);
+        if(!chunkIDAT.initialize()){
+            return false;
+        }
+        if(!chunkIDAT.write(stream, height, reinterpret_cast<const u8*>(image))){
+            return false;
+        }
+        chunkIDAT.terminate();
+        if(!writeChunk(stream, ChunkIEND::Type, 0, CPPIMG_NULL)){
+            return false;
+        }
+        seekSet.clear();
         return true;
     }
 
@@ -1599,7 +1692,7 @@ namespace
     //----------------------------------------------------
     bool PNG::ChunkIHDR::read(IStream& istream)
     {
-        if(istream.read(13, &width_)<0){
+        if(istream.read(Size, &width_)<0){
             return false;
         }
         u32 crc;
@@ -1715,20 +1808,22 @@ namespace
 
     //--- ChunkIDAT
     //----------------------------------------------------
-    PNG::ChunkIDAT::ChunkIDAT(bool deflate, void* image, u32 width, u32 height, s32 color, s32 alpha)
+    PNG::ChunkIDAT::ChunkIDAT(bool deflate, u32 width, u32 height, s32 color, s32 alpha)
         :deflate_(deflate)
         ,totalSize_(width*height*(color+alpha))
         ,totalCount_(0)
         ,color_(color)
         ,alpha_(alpha)
         ,width_(width)
-        ,image_(reinterpret_cast<u8*>(image))
         ,scanlineSize_(width*(color+alpha))
-        ,scanline_(reinterpret_cast<u8*>(image))
+        ,scanline_(CPPIMG_NULL)
         ,scanlineOffset_(0)
         ,filterFlag_(-1)
     {
-        stream_.deflate_ = CPPIMG_NULL;
+        stream_.zalloc = CPPIMG_NULL;
+        stream_.zfree = CPPIMG_NULL;
+        stream_.opaque = CPPIMG_NULL;
+        stream_.state = CPPIMG_NULL;
     }
 
     PNG::ChunkIDAT::~ChunkIDAT()
@@ -1738,71 +1833,75 @@ namespace
 
     bool PNG::ChunkIDAT::initialize()
     {
-        if(CPPIMG_NULL == stream_.deflate_){
+        if(CPPIMG_NULL == stream_.state){
             s32 result;
             if(deflate_){
-                result = cppz::cppz_deflateInit(stream_);
+                result = mz_deflateInit(&stream_, 6);
             }else{
-                result = cppz::cppz_inflateInit(stream_);
+                result = mz_inflateInit(&stream_);
             }
-            stream_.avail_out_ = BufferSize;
-            stream_.next_out_ = dst_;
-            return cppz::CPPZ_OK == result;
+            stream_.avail_out = BufferSize;
+            stream_.next_out = dst_;
+            scanline_ = CPPIMG_NULL;
+            return MZ_OK == result;
         }
         return false;
     }
 
     bool PNG::ChunkIDAT::terminate()
     {
-        if(CPPIMG_NULL != stream_.deflate_){
+        if(CPPIMG_NULL != stream_.state){
             s32 result;
             if(deflate_){
-                result = cppz::cppz_deflateEnd(stream_);
+                result = mz_deflateEnd(&stream_);
             }else{
-                result = cppz::cppz_inflateEnd(stream_);
+                result = mz_inflateEnd(&stream_);
             }
-            stream_.deflate_ = CPPIMG_NULL;
-            return cppz::CPPZ_OK == result;
+            stream_.state = CPPIMG_NULL;
+            return MZ_OK == result;
         }
         return true;
     }
 
 
-    bool PNG::ChunkIDAT::read(IStream& stream)
+    bool PNG::ChunkIDAT::read(void* image, IStream& stream)
     {
+        u8 src_[BufferSize];
+
         u32 chunkCount = 0;
         s32 result;
-
-        stream_.avail_in_ = 0;
-        u8* dst = stream_.next_out_;
+        if(CPPIMG_NULL == scanline_){
+            scanline_ = reinterpret_cast<u8*>(image);
+        }
+        stream_.avail_in = 0;
+        u8* dst = stream_.next_out;
         do{
-            if(stream_.avail_out_<=0){
-                stream_.avail_out_ = BufferSize;
-                stream_.next_out_ = dst_;
+            if(stream_.avail_out<=0){
+                stream_.avail_out = BufferSize;
+                stream_.next_out = dst_;
                 dst = dst_;
             }
-            if(stream_.avail_in_<=0){
-                stream_.next_in_ = src_;
-                cppz::u32 size = BufferSize;
+            if(stream_.avail_in<=0){
+                stream_.next_in = src_;
+                u32 size = BufferSize;
                 if(length_<(chunkCount+size)){
                     size = length_-chunkCount;
                 }
                 if(size<=0){
                     break;
                 }
-                stream_.avail_in_ = size;
+                stream_.avail_in = size;
                 if(stream.read(size, src_)<0){
                     return false;
                 }
                 chunkCount += size;
             }
-            //u64 totalIn = stream_.total_in_;
-            u64 totalOut = stream_.total_out_;
-            result = cppz::cppz_inflate(stream_, cppz::CPPZ_NO_FLUSH);
-            if(cppz::CPPZ_OK != result && cppz::CPPZ_STREAM_END != result){
+            u64 totalOut = stream_.total_out;
+            result = mz_inflate(&stream_, MZ_NO_FLUSH);
+            if(MZ_OK != result && MZ_STREAM_END != result){
                 return false;
             }
-            u32 outSize = static_cast<u32>(stream_.total_out_ - totalOut);
+            u32 outSize = static_cast<u32>(stream_.total_out - totalOut);
 
             //Copy inflated data to scanline
             while(0<outSize && totalCount_<totalSize_){
@@ -1819,7 +1918,7 @@ namespace
                 //Scanline have been filled up, apply filter
                 if(scanlineSize_<=scanlineOffset_){
                     CPPIMG_ASSERT(scanlineSize_ == scanlineOffset_);
-                    filter();
+                    filter(reinterpret_cast<u8*>(image));
                     filterFlag_ = -1;
                     scanline_ += scanlineSize_;
                     scanlineOffset_ = 0;
@@ -1828,7 +1927,7 @@ namespace
                 outSize -= copySize;
                 dst += copySize;
             }
-        }while(cppz::CPPZ_STREAM_END != result && totalCount_<totalSize_);
+        }while(MZ_STREAM_END != result && totalCount_<totalSize_);
 
         u32 crc;
         if(stream.read(sizeof(u32), &crc)<0){
@@ -1837,9 +1936,102 @@ namespace
         return true;
     }
 
-    void PNG::ChunkIDAT::filter()
+    bool PNG::ChunkIDAT::write(OStream& stream, s32 height, const u8* image)
     {
-        CPPIMG_ASSERT(image_<=scanline_ && scanline_<(image_+totalSize_));
+        struct ReleaseMemory
+        {
+            ReleaseMemory(u8* ptr)
+                :ptr_(ptr)
+            {}
+            ~ReleaseMemory()
+            {
+                CPPIMG_FREE(ptr_);
+            }
+            u8* ptr_;
+        };
+
+        s32 lenPos = stream.tell();
+        u32 outCount = 0;
+        if(stream.write(sizeof(u32), &outCount)<=0){
+            return false;
+        }
+        u32 type = Type;
+        if(stream.write(sizeof(u32), &type)<=0){
+            return false;
+        }
+        u32 crc = 0xFFFFFFFFUL;
+        crc = updateCRC32(crc, sizeof(u32), reinterpret_cast<const u8*>(&type));
+
+        //Add 1 byte of filter type for each scanlines
+        //---------------------------------
+        u32 totalSize = totalSize_ + height;
+
+        u8* in = reinterpret_cast<u8*>(CPPIMG_MALLOC(totalSize));
+        ReleaseMemory releaseInMemory(in);
+
+        {
+            u8 filter = 0;
+            const u8* src = image;
+            u8* dst = in;
+            for(s32 i=0; i<height; ++i){
+                dst[0] = filter;
+                ++dst;
+                memcpy(dst, src, scanlineSize_);
+                src += scanlineSize_;
+                dst += scanlineSize_;
+            }
+        }
+
+        //---------------------------------
+        u32 inCount = 0;
+        s32 result;
+        s32 flush;
+        do{
+            if(totalSize<=inCount){
+                break;
+            }
+            u32 size = totalSize;
+            if(totalSize<(inCount+size)){
+                size = totalSize-inCount;
+            }
+            stream_.avail_in = size;
+            stream_.next_in = in+inCount;
+            inCount += size;
+            flush = (totalSize<=inCount)? MZ_FINISH : MZ_NO_FLUSH;
+            do{
+                stream_.avail_out = BufferSize;
+                stream_.next_out = dst_;
+                u64 totalOut = stream_.total_out;
+                result = mz_deflate(&stream_, flush);
+                if(MZ_OK != result && MZ_STREAM_END != result){
+                    return false;
+                }
+                u32 outSize = static_cast<u32>(stream_.total_out - totalOut);
+                if(0<outSize){
+                    crc = updateCRC32(crc, outSize, dst_);
+                    if(stream.write(outSize, dst_)<=0){
+                        return false;
+                    }
+                }
+                outCount += outSize;
+            }while(MZ_STREAM_END != result);
+        }while(flush != MZ_FINISH);
+
+        s32 crcPos = stream.tell();
+        stream.seek(lenPos, SEEK_SET);
+        outCount = reverse(outCount);
+        if(stream.write(sizeof(u32), &outCount)<=0){
+            return false;
+        }
+        stream.seek(crcPos, SEEK_SET);
+        crc ^= 0xFFFFFFFFUL;
+        crc = reverse(crc);
+        return stream.write(sizeof(u32), &crc)<=0;
+    }
+
+    void PNG::ChunkIDAT::filter(u8* image)
+    {
+        CPPIMG_ASSERT(image<=scanline_ && scanline_<(image+totalSize_));
         u32 components = color_+alpha_;
         switch(filterFlag_)
         {
@@ -1853,7 +2045,7 @@ namespace
             }
             break;
         case FilterType_Up:
-            if(image_<scanline_){
+            if(image<scanline_){
                 u8* upper = scanline_-scanlineSize_;
                 for(u32 i=0; i<width_; ++i){
                     u32 p = i*components;
@@ -1865,7 +2057,7 @@ namespace
             }
             break;
         case FilterType_Avg:
-            if(image_<scanline_){
+            if(image<scanline_){
                 u8* upper = scanline_-scanlineSize_;
                 for(u32 i=1; i<width_; ++i){
                     u32 p = i*components;
@@ -1891,8 +2083,8 @@ namespace
                 u32 p = i*components;
                 for(u32 j = 0; j<components; ++j, ++p){
                     s32 a = (0<i)? scanline_[p-components] : 0;
-                    s32 b = (image_<scanline_)? upper[p] : 0;
-                    s32 c = (0<i && image_<scanline_)? upper[p-components] : 0;
+                    s32 b = (image<scanline_)? upper[p] : 0;
+                    s32 c = (0<i && image<scanline_)? upper[p-components] : 0;
                     s32 x = a+b-c;
                     s32 pa = absolute(x-a);
                     s32 pb = absolute(x-b);
@@ -1988,6 +2180,33 @@ namespace
         }
         chunk.length_ = reverse(chunk.length_);
         if(!checkCRC32(chunk, stream)){
+            return false;
+        }
+        return true;
+    }
+
+    bool PNG::writeChunk(OStream& stream, u32 type, u32 size, const void* data)
+    {
+        u32 crc = 0xFFFFFFFFUL;
+        crc = updateCRC32(crc, sizeof(u32), reinterpret_cast<const u8*>(&type));
+        crc = updateCRC32(crc, size, reinterpret_cast<const u8*>(data));
+        crc ^= 0xFFFFFFFFUL;
+
+        u32 rcrc = reverse(crc);
+        u32 rsize = reverse(size);
+
+        if(stream.write(sizeof(u32), &rsize)<=0){
+            return false;
+        }
+        if(stream.write(sizeof(u32), &type)<=0){
+            return false;
+        }
+        if(0<size){
+            if(stream.write(size, data)<=0){
+                return false;
+            }
+        }
+        if(stream.write(sizeof(u32), &rcrc)<=0){
             return false;
         }
         return true;

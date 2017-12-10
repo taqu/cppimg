@@ -5,7 +5,7 @@ set(CMAKE_CONFIGURATION_TYPES "Debug" "Release")
 set(ProjectName TestCppImg)
 project(${ProjectName})
 
-set(SOURCES "main.cpp;test_png.cpp;test_tga.cpp;test_bmp.cpp;test_deflate.cpp;../deflate.h;../cppimg.h")
+set(SOURCES "main.cpp;test_png.cpp;test_tga.cpp;test_bmp.cpp;test_deflate.cpp;../cppimg.h")
 
 include_directories(AFTER ${CMAKE_CURRENT_SOURCE_DIR})
 #include_directories(AFTER ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/zlib)
