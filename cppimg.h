@@ -727,6 +727,7 @@ namespace cppimg
     };
 
 }
+#endif //INC_CPPIMG_H_
 
 #ifdef CPPIMG_IMPLEMENTATION
 namespace cppimg
@@ -2213,5 +2214,3 @@ namespace
     }
 }
 #endif
-
-#endif //INC_CPPIMG_H_
