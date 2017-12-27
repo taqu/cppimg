@@ -105,6 +105,12 @@ namespace cppimg
 #define CPPIMG_SPRINTF(b,f, ...) sprintf_s(b, f, __VA_ARGS__)
 #endif
 
+    inline FILE* CPPIMG_FOPEN(const Char* filepath, const Char* mode)
+    {
+        FILE* file = CPPIMG_NULL;
+        return 0 != ::fopen_s(&file, filepath, mode) ? file : CPPIMG_NULL;
+    }
+    
 #else
 #ifndef CPPIMG_OFF_T
 #define CPPIMG_OFF_T
@@ -122,6 +128,11 @@ namespace cppimg
 #ifndef CPPIMG_SPRINTF
 #define CPPIMG_SPRINTF(b,f, ...) sprintf(b, f, __VA_ARGS__)
 #endif
+
+    inline FILE* CPPIMG_FOPEN(const Char* filepath, const Char* mode)
+    {
+        return ::fopen(filepath, mode);
+    }
 #endif
 
 #ifndef CPPIMG_MALLOC
@@ -275,17 +286,10 @@ namespace cppimg
     {
         CPPIMG_ASSERT(CPPIMG_NULL != filepath);
         CPPIMG_ASSERT(CPPIMG_NULL != mode);
-#ifdef _MSC_VER
-        FILE* file;
-        if(0 != fopen_s(&file, filepath, mode)){
-            return false;
-        }
-#else
-        FILE* file = fopen(filepath, mode);
+        FILE* file = CPPIMG_FOPEN(filepath, mode);
         if(CPPIMG_NULL == file){
             return false;
         }
-#endif
         close();
         file_ = file;
         return true;
@@ -417,7 +421,7 @@ namespace cppimg
         static bool write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image);
 
     private:
-        static const u16 MAGIC = 'MB';
+        static const u16 MAGIC = 0x4D42U;//'MB';
 
         static const u32 Compression_RGB = 0;
         static const u32 Compression_RLE8 = 1;
@@ -753,10 +757,12 @@ namespace
         return crc;
     }
 
+#if 0 //unused
     u32 CRC32(u32 len, const u8* buffer)
     {
         return updateCRC32(0xFFFFFFFFUL, len, buffer)^0xFFFFFFFFUL;
     }
+#endif
 
     //----------------------------------------------------
     //--- SeekSet
@@ -1181,14 +1187,14 @@ namespace
         for(s32 i = 0; i<pixels;){
             u8 byte;
             if(stream.read(1, &byte)<=0){
-                false;
+                return false;
             }
             //If MSB is 1 then consecutive, else no-consecutive data
             s32 count = (byte & 0x7FU) + 1;
             if(0 != (byte & 0x80U)){
                 //consecutive data
                 if(stream.read(bpp, tmp)<=0){
-                    false;
+                    return false;
                 }
                 for(s32 j = 0; j<count; ++j){
                     row[0] = tmp[2];
@@ -1208,7 +1214,7 @@ namespace
                 //no-consecutive data
                 for(s32 j = 0; j<count; ++j){
                     if(stream.read(bpp, tmp)<=0){
-                        false;
+                        return false;
                     }
                     row[0] = tmp[2];
                     row[1] = tmp[1];
@@ -1454,6 +1460,8 @@ namespace
                 return false;
             }
             break;
+        default:
+            return false;
         }
         seekSet.clear();
         return true;

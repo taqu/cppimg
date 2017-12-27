@@ -6,6 +6,11 @@
 #include <string.h>
 #include <random>
 
+#ifdef _MSC_VER
+#else
+#include <sys/stat.h>
+#endif
+
 //#define CPPZ_OUT_LOG
 //#define CPPZ_TEST_VERY_LARGE
 
@@ -198,14 +203,19 @@ void test(int loopCount, u32 size)
 
 void test(const char* path)
 {
-    FILE* file = CPPIMG_NULL;
-    fopen_s(&file, path, "rb");
+    FILE* file = CPPIMG_FOPEN(path, "rb");
     if(CPPIMG_NULL == file){
         return;
     }
-    s32 fd = fileno(file);
+#ifdef _MSC_VER
+    s32 fd = _fileno(file);
     struct _stat fs;
     _fstat(fd, &fs);
+#else
+    s32 fd = fileno(file);
+    struct stat fs;
+    fstat(fd, &fs);
+#endif
     u32 size = fs.st_size;
 
     u8* compressed0 = reinterpret_cast<u8*>(malloc(size*3));
