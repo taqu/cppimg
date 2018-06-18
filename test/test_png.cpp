@@ -3,6 +3,9 @@
 #include "catch.hpp"
 
 #include "../cppimg.h"
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 
 namespace
 {
@@ -27,11 +30,13 @@ namespace
             return;
         }
         cppimg::u8* image = new cppimg::u8[width*height*cppimg::getBytesPerPixel(colorType)];
-        if(cppimg::PNG::read(width, height, colorType, image, file)){
+        if(!cppimg::PNG::read(width, height, colorType, image, file)){
+            CHECK(false);
+        }else{
             cppimg::OFStream ofile;
             SPRINTF(buffer, "%s%s", directory, dst);
             if(ofile.open(buffer)){
-                cppimg::PNG::write(ofile, width, height, colorType, image);
+                cppimg::BMP::write(ofile, width, height, colorType, image);
             }
         }
         delete[] image;
@@ -41,9 +46,9 @@ namespace
 TEST_CASE("Read/Write PNG" "[PNG]")
 {
     SECTION("test00.png"){
-        test("test00.png", "out00.png", "../data/");
+        test("test00.png", "out00.png.bmp", "../data/");
     }
     SECTION("test01.png"){
-        test("test01.png", "out01.png", "../data/");
+        test("test01.png", "out01.png.bmp", "../data/");
     }
 }

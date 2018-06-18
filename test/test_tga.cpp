@@ -11,7 +11,7 @@ namespace
 #else
 #define SPRINTF(BUFF, FORMAT, VAR0, VAR1) sprintf((BUFF), (FORMAT), (VAR0), (VAR1))
 #endif
-    void test(const char* src, const char* dst, const char* directory)
+    void test(const char* src, const char* dst, const char* directory, bool compress)
     {
         cppimg::IFStream file;
         cppimg::s32 width, height;
@@ -31,8 +31,10 @@ namespace
             cppimg::OFStream ofile;
             SPRINTF(buffer, "%s%s", directory, dst);
             if(ofile.open(buffer)){
-                cppimg::TGA::write(ofile, width, height, colorType, image);
+                cppimg::TGA::write(ofile, width, height, colorType, image, compress? cppimg::TGA::Option_Compress : cppimg::TGA::Option_None);
             }
+        }else{
+            CHECK(false);
         }
         delete[] image;
     }
@@ -41,15 +43,15 @@ namespace
 TEST_CASE("Read/Write TGA" "[PNG]")
 {
     SECTION("test00.tga"){
-        test("test00.tga", "out00_rle.tga", "../data/");
+        test("test00.tga", "out00.tga", "../data/", false);
     }
     SECTION("test00_rle.tga"){
-        test("test00_rle.tga", "out00_rle.tga", "../data/");
+        test("test00_rle.tga", "out00_rle.tga", "../data/", true);
     }
     SECTION("test01.tga"){
-        test("test01.tga", "out00_rle.tga", "../data/");
+        test("test01.tga", "out01.tga", "../data/", false);
     }
     SECTION("test01_rle.tga"){
-        test("test01_rle.tga", "out01_rle.tga", "../data/");
+        test("test01_rle.tga", "out01_rle.tga", "../data/", true);
     }
 }
