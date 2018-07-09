@@ -37,8 +37,8 @@ Put '#define CPPIMG_DISABLE_PNG' to disable support for PNG.
 #include <cassert>
 #include <cstdint>
 #include <utility>
-#include <sys/stat.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <cmath>
 
 //#define CPPIMG_IMPLEMENTATION
@@ -119,7 +119,7 @@ namespace cppimg
     {
         CPPIMG_ASSERT(CPPIMG_NULL != file);
         struct _stat64 stat;
-        return (0 == _fstat64(_fileno(file), &stat))? stat.st_size : 0;
+        return (0 == _fstat64(fileno(file), &stat))? stat.st_size : 0;
     }
 
     inline FILE* CPPIMG_FOPEN(const Char* filepath, const Char* mode)
@@ -158,7 +158,7 @@ namespace cppimg
     {
         CPPIMG_ASSERT(CPPIMG_NULL != file);
         struct stat64 stat;
-        return (0 == fstat64(_fileno(file), &stat))? stat.st_size : 0;
+        return (0 == fstat64(fileno(file), &stat))? stat.st_size : 0;
     }
 
     inline FILE* CPPIMG_FOPEN(const Char* filepath, const Char* mode)
