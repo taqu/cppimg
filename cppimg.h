@@ -38,6 +38,7 @@ Put '#define CPPIMG_DISABLE_PNG' to disable support for PNG.
 #include <cstdint>
 #include <utility>
 #include <sys/stat.h>
+#include <stdio.h>
 #include <cmath>
 
 //#define CPPIMG_IMPLEMENTATION
@@ -167,9 +168,9 @@ namespace cppimg
 
     inline void CPPIMG_FCLOSE(FILE*& file)
     {
-        if(CPP_NULL != file){
+        if(CPPIMG_NULL != file){
             fclose(file);
-            file = CPP_NULL;
+            file = CPPIMG_NULL;
         }
     }
 #endif
@@ -1283,7 +1284,7 @@ namespace
     s32 IFStream::read(size_t size, void* dst)
     {
         CPPIMG_ASSERT(CPPIMG_NULL != file_);
-        s32 num = 0<size? 1 : 0;
+        size_t num = 0<size? 1 : 0;
         return num == fread(dst, size, num, file_)? 1 : -1;
     }
 
@@ -1307,7 +1308,7 @@ namespace
     s32 OFStream::write(size_t size, const void* dst)
     {
         CPPIMG_ASSERT(CPPIMG_NULL != file_);
-        s32 num = 0<size? 1 : 0;
+        size_t num = 0<size? 1 : 0;
         return num == fwrite(dst, size, num, file_)? 1 : -1;
     }
 
