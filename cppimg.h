@@ -179,7 +179,7 @@ namespace cppimg
 #endif
 
 #ifndef CPPIMG_FREE
-#define CPPIMG_FREE(ptr) free(ptr)
+#define CPPIMG_FREE(ptr) free(ptr); (ptr) = CPPIMG_NULL
 #endif
 
 #ifndef CPPIMG_MEMSET
@@ -259,45 +259,16 @@ namespace cppimg
         virtual bool valid() const =0;
         virtual bool seek(off_t pos, s32 whence) =0;
         virtual off_t tell() =0;
+        virtual s64 size() =0;
+
+        virtual s32 read(size_t size, void* dst) =0;
+        virtual s32 write(size_t size, const void* dst) =0;
     protected:
         Stream(){}
         ~Stream(){}
     private:
         Stream(const Stream&) = delete;
         Stream& operator=(const Stream&) = delete;
-    };
-    //----------------------------------------------------
-    //---
-    //--- IStream
-    //---
-    //----------------------------------------------------
-    class IStream : public Stream
-    {
-    public:
-        virtual s32 read(size_t size, void* dst) =0;
-    protected:
-        IStream(){}
-        ~IStream(){}
-    private:
-        IStream(const IStream&) = delete;
-        IStream& operator=(const IStream&) = delete;
-    };
-
-    //----------------------------------------------------
-    //---
-    //--- OStream
-    //---
-    //----------------------------------------------------
-    class OStream : public Stream
-    {
-    public:
-        virtual s32 write(size_t size, const void* dst) =0;
-    protected:
-        OStream(){}
-        ~OStream(){}
-    private:
-        OStream(const OStream&) = delete;
-        OStream& operator=(const OStream&) = delete;
     };
 
     //----------------------------------------------------
@@ -314,7 +285,7 @@ namespace cppimg
         virtual bool valid() const;
         virtual bool seek(off_t pos, s32 whence);
         virtual off_t tell();
-
+        virtual s64 size();
     protected:
         FStream(const FStream&) = delete;
         FStream& operator=(const FStream&) = delete;
@@ -389,15 +360,22 @@ namespace cppimg
         return CPPIMG_FTELL(file_);
     }
 
+    template<class T>
+    s64 FStream<T>::size()
+    {
+        CPPIMG_ASSERT(CPPIMG_NULL != file_);
+        return CPPIMG_FSIZE(file_);
+    }
+
     //----------------------------------------------------
     //---
     //--- IFStream
     //---
     //----------------------------------------------------
-    class IFStream : public FStream<IStream>
+    class IFStream : public FStream<Stream>
     {
     public:
-        typedef FStream<IStream> parent_type;
+        typedef FStream<Stream> parent_type;
 
         IFStream()
         {}
@@ -415,6 +393,7 @@ namespace cppimg
         }
 
         virtual s32 read(size_t size, void* dst);
+        virtual s32 write(size_t ,const void*){ return 0;}
 
         IFStream& operator=(IFStream&& rhs);
     private:
@@ -427,10 +406,10 @@ namespace cppimg
     //--- OFStream
     //---
     //----------------------------------------------------
-    class OFStream : public FStream<OStream>
+    class OFStream : public FStream<Stream>
     {
     public:
-        typedef FStream<OStream> parent_type;
+        typedef FStream<Stream> parent_type;
 
         OFStream()
         {}
@@ -447,6 +426,7 @@ namespace cppimg
             return parent_type::open(filepath, "wb");
         }
 
+        virtual s32 read(size_t, void*){ return 0;}
         virtual s32 write(size_t size, const void* dst);
 
         OFStream& operator=(OFStream&& rhs);
@@ -472,7 +452,7 @@ namespace cppimg
         @param colorType
         @param stream
         */
-        static bool read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream);
+        static bool read(s32& width, s32& height, ColorType& colorType, void* image, Stream& stream);
 
         /**
         @brief
@@ -483,7 +463,7 @@ namespace cppimg
         @param colorType
         @param stream
         */
-        static bool write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image);
+        static bool write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image);
 
     private:
         static const u16 MAGIC = 0x4D42U;//'MB';
@@ -556,8 +536,8 @@ namespace cppimg
             u32 reserved_;
         };
 
-        static bool read24(u8* image, s32 width, s32 height, bool leftBottom, IStream& stream);
-        static bool read32(u8* image, s32 width, s32 height, bool leftBottom, IStream& stream);
+        static bool read24(u8* image, s32 width, s32 height, bool leftBottom, Stream& stream);
+        static bool read32(u8* image, s32 width, s32 height, bool leftBottom, Stream& stream);
     };
 
     //----------------------------------------------------
@@ -580,7 +560,7 @@ namespace cppimg
         @param colorType
         @param stream
         */
-        static bool read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream);
+        static bool read(s32& width, s32& height, ColorType& colorType, void* image, Stream& stream);
 
         /**
         @brief
@@ -591,7 +571,7 @@ namespace cppimg
         @param colorType
         @param stream
         */
-        static bool write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image, s32 options = Option_Compress);
+        static bool write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image, s32 options = Option_Compress);
 
     private:
         enum Type
@@ -647,11 +627,11 @@ namespace cppimg
             return true;
         }
 
-        static bool readInternal(s32 width, s32 height, u8 bpp, u8* image, IStream& stream);
-        static bool readRLEInternal(s32 width, s32 height, u8 bpp, u8* image, IStream& stream);
+        static bool readInternal(s32 width, s32 height, u8 bpp, u8* image, Stream& stream);
+        static bool readRLEInternal(s32 width, s32 height, u8 bpp, u8* image, Stream& stream);
         static u8 calcRunLength(u8 bpp, s32 x, s32 y, s32 width, const u8* image);
-        static bool writeUncompress(OStream& stream, s32 width, s32 height, u8 bpp, const u8* image);
-        static bool writeRLE(OStream& stream, s32 width, s32 height, u8 bpp, const u8* image);
+        static bool writeUncompress(Stream& stream, s32 width, s32 height, u8 bpp, const u8* image);
+        static bool writeRLE(Stream& stream, s32 width, s32 height, u8 bpp, const u8* image);
     };
 
     //----------------------------------------------------
@@ -671,7 +651,7 @@ namespace cppimg
         @param colorType
         @param stream
         */
-        static bool write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image);
+        static bool write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image);
     };
 
 #if !defined(CPPIMG_DISABLE_PNG)
@@ -692,7 +672,7 @@ namespace cppimg
         @param colorType
         @param stream
         */
-        static bool read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream);
+        static bool read(s32& width, s32& height, ColorType& colorType, void* image, Stream& stream);
 
 #if 0
         /**
@@ -704,7 +684,7 @@ namespace cppimg
         @param colorType
         @param stream
         */
-        static bool write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image);
+        static bool write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image);
 #endif
     private:
         static const u64 Signature = 0x0A1A0A0D474E5089U;
@@ -731,7 +711,7 @@ namespace cppimg
         {
             static const u32 Type = 0x52444849U;//'RDHI';
             static const u32 Size = 13;
-            bool read(IStream& stream);
+            bool read(Stream& stream);
 
             u32 width_;
             u32 height_;
@@ -746,7 +726,7 @@ namespace cppimg
         {
             static const u32 Type = 0x45544C50U;//'ETLP';
             static const u32 MaxSize = 256;
-            bool read(IStream& stream);
+            bool read(Stream& stream);
 
             u32 size_;
             u8 r_[MaxSize];
@@ -764,7 +744,7 @@ namespace cppimg
 
             bool initialize();
             bool terminate();
-            bool read(IStream& stream);
+            bool read(Stream& stream);
             bool decode(void* image);
             void filter(u32 scanlineSize, s32 filterFlag, u8* scanline, u8* image);
 
@@ -785,16 +765,16 @@ namespace cppimg
 
         static inline u16 reverse(u16 x);
         static inline u32 reverse(u32 x);
-        static bool readHeader(IStream& stream);
-        static bool checkCRC32(const Chunk& chunk, IStream& stream);
-        static bool skipChunk(const Chunk& chunk, IStream& stream);
+        static bool readHeader(Stream& stream);
+        static bool checkCRC32(const Chunk& chunk, Stream& stream);
+        static bool skipChunk(const Chunk& chunk, Stream& stream);
 
         template<class T>
         static void setChunkHeader(T& dst, const Chunk& src);
 
         template<class T>
-        static bool readHeader(T& chunk, IStream& stream);
-        static bool writeChunk(OStream& stream, u32 type, u32 size, const void* data);
+        static bool readHeader(T& chunk, Stream& stream);
+        static bool writeChunk(Stream& stream, u32 type, u32 size, const void* data);
     };
 #endif
 
@@ -807,6 +787,7 @@ namespace cppimg
     {
     public:
         static const s32 FIXED_POINT_SHIFT = 12;
+        static const s32 FIXED_POINT_SHIFT2 = 6;
 
         /**
         @brief
@@ -817,8 +798,18 @@ namespace cppimg
         @param colorType
         @param stream
         */
-        static bool read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream);
+        static bool read(s32& width, s32& height, ColorType& colorType, void* image, Stream& stream);
 
+        /**
+        @brief
+        @return Success:true, Fail:false
+        @param width
+        @param height
+        @param image
+        @param colorType
+        @param stream
+        */
+        //static bool write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image);
     private:
         static const s32 QT_SIZE = 64;
         static const s32 QT_NUM = 4;
@@ -844,14 +835,49 @@ namespace cppimg
             return (size+0x07)>>3;
         }
 
-        struct Stream
+        struct Segment;
+
+        struct ByteStream
         {
-            s32 readBits(IStream& stream, s32 bits);
-            s32 writeBits(OStream& stream, s32 bits, s32 value);
-            s32 fillByte(OStream& stream);
+            ByteStream()
+                :bits_(0)
+                ,byte_(0)
+                ,stream_(CPPIMG_NULL)
+            {}
+
+            ByteStream(Stream* stream)
+                :bits_(0)
+                ,byte_(0)
+                ,stream_(stream)
+            {}
+
+            inline void reset();
+            inline s32 read(size_t size, void* bytes);
+            inline s32 write(size_t size, void* bytes);
+            inline bool skip(size_t size);
+
+            s32 readByte();
+
+            s32 readBits(s32 bits);
+            s32 writeBits(s32 bits, s32 value);
+            s32 fillByte();
+
+            bool readSegment(Segment& segment);
+            bool readMarker(u8& marker);
+            bool read16(u16& x);
+
+            inline bool skipSegment(const Segment& segment);
 
             s32 bits_;
             u8 byte_;
+            Stream* stream_;
+        };
+
+        struct Segment
+        {
+            u8 ff_;
+            u8 marker_;
+            u16 length_;
         };
 
         struct QuantizationTable
@@ -872,33 +898,12 @@ namespace cppimg
 
         struct HuffmanTable
         {
-            struct Component
-            {
-                Component()
-                {}
-
-                Component(u8 code)
-                    :code_(code)
-                {}
-
-                s32 getRunLength() const
-                {
-                    return (code_>>4) & 0xFU;
-                }
-                s32 getDataBits() const
-                {
-                    return code_ & 0xFU;
-                }
-
-                u8 code_;
-            };
-
             //s8 class_; ///< table class 0=DC, 1=AC
             //s8 id_; ///< table number 0-3
             s32 number_;
-            u8 size_[HT_BITS_TABLE];
-            u8 code_[HT_BITS_TABLE];
-            Component value_[HT_MAX_SIZE];
+            u16 code_[HT_MAX_SIZE];
+            u8 size_[HT_MAX_SIZE];
+            u8 value_[HT_MAX_SIZE];
         };
 
         struct Component
@@ -1005,10 +1010,10 @@ namespace cppimg
                 const f32 isqrt2 = 0.70710678118f;
                 const f32 pi = 3.14159265359f;
                 for(s32 i=0; i<BLOCK_WIDTH; ++i){
-                    cosine_[i][0] = static_cast<s32>(isqrt2 * (f32)(1<<FIXED_POINT_SHIFT));
+                    cosine_[i][0] = static_cast<s16>(isqrt2 * (f32)(1<<FIXED_POINT_SHIFT));
                     for(s32 j=1; j<BLOCK_WIDTH; ++j){
                         f32 f = cosf( ((i*2 + 1)*j) * (pi/16.0f) );
-                        cosine_[i][j] = static_cast<s32>(f * (f32)(1<<FIXED_POINT_SHIFT));
+                        cosine_[i][j] = static_cast<s16>(f * (f32)(1<<FIXED_POINT_SHIFT));
                     }
                 }
             }
@@ -1021,88 +1026,86 @@ namespace cppimg
             FrameHeader frame_;
             Scan scan_;
             JFXX jfxx_;
-            s32 cosine_[BLOCK_WIDTH][BLOCK_WIDTH];
+            s16 cosine_[BLOCK_WIDTH][BLOCK_WIDTH];
 
-            s32 components_[MAX_COMPONENTS][MAX_COMPONENT_SIZE];
-            s32 directCurrents_[MAX_COMPONENTS];
-            s32 block_[BLOCK_SIZE];
-            s32 dct_[BLOCK_SIZE];
+            s16 components_[MAX_COMPONENTS][MAX_COMPONENT_SIZE];
+            s16 directCurrents_[MAX_COMPONENTS];
+            s16 block_[BLOCK_SIZE];
+            s16 dct_[BLOCK_SIZE];
 
-            Stream stream_;
-            u8* rgba_;
-        };
-
-        struct Segment
-        {
-            u16 marker_;
-            u16 length_;
+            ByteStream byteStream_;
+            s16* work_;
+            u8* rgb_;
         };
 
         class AutoFree
         {
         public:
-            AutoFree(void* pointer)
+            AutoFree(Context* pointer)
                 :pointer_(pointer)
             {}
 
             ~AutoFree()
             {
-                CPPIMG_FREE(pointer_);
+                if(CPPIMG_NULL != pointer_){
+                    CPPIMG_FREE(pointer_->work_);
+                    CPPIMG_FREE(pointer_);
+                }
             }
 
         private:
-            void* pointer_;
+            Context* pointer_;
         };
 
-        static const u16 MARKER_SOI = 0xD8FFU;
-        static const u16 MARKER_EOI = 0xD9FFU;
+        static const u8 MARKER_SOI = 0xD8U;
+        static const u8 MARKER_EOI = 0xD9U;
 
-        static const u16 MARKER_DQT  = 0xDBFFU;
-        static const u16 MARKER_DHT  = 0xC4FFU;
-        static const u16 MARKER_DRI = 0xDDFFU;
-        static const u16 MARKER_DNL = 0xDCFFU;
+        static const u8 MARKER_DQT  = 0xDBU;
+        static const u8 MARKER_DHT  = 0xC4U;
+        static const u8 MARKER_DRI = 0xDDU;
+        static const u8 MARKER_DNL = 0xDCU;
 
-        static const u16 MARKER_SOF0 = 0xC0FFU;
-        static const u16 MARKER_SOF1 = 0xC1FFU;
-        static const u16 MARKER_SOF2 = 0xC2FFU;
-        static const u16 MARKER_SOF3 = 0xC3FFU;
-        static const u16 MARKER_SOF5 = 0xC5FFU;
-        static const u16 MARKER_SOF6 = 0xC6FFU;
-        static const u16 MARKER_SOF7 = 0xC7FFU;
-        static const u16 MARKER_SOF9 = 0xC9FFU;
-        static const u16 MARKER_SOFA = 0xCAFFU;
-        static const u16 MARKER_SOFB = 0xCBFFU;
-        static const u16 MARKER_SOFD = 0xCDFFU;
-        static const u16 MARKER_SOFE = 0xCEFFU;
-        static const u16 MARKER_SOFF = 0xCFFFU;
+        static const u8 MARKER_SOF0 = 0xC0U;
+        static const u8 MARKER_SOF1 = 0xC1U;
+        static const u8 MARKER_SOF2 = 0xC2U;
+        static const u8 MARKER_SOF3 = 0xC3U;
+        static const u8 MARKER_SOF5 = 0xC5U;
+        static const u8 MARKER_SOF6 = 0xC6U;
+        static const u8 MARKER_SOF7 = 0xC7U;
+        static const u8 MARKER_SOF9 = 0xC9U;
+        static const u8 MARKER_SOFA = 0xCAU;
+        static const u8 MARKER_SOFB = 0xCBU;
+        static const u8 MARKER_SOFD = 0xCDU;
+        static const u8 MARKER_SOFE = 0xCEU;
+        static const u8 MARKER_SOFF = 0xCFU;
 
-        static const u16 MARKER_SOS  = 0xDAFFU;
+        static const u8 MARKER_SOS  = 0xDAU;
 
-        static const u16 MARKER_APP0 = 0xE0FFU;
+        static const u8 MARKER_APP0 = 0xE0U;
 
         //
-        //static const u16 MARKER_COM = 0xFFFEU;
-        //static const u16 MARKER_APP00 = 0xFFE0U;
-        //static const u16 MARKER_APP01 = 0xFFE1U;
-        //static const u16 MARKER_APP02 = 0xFFE2U;
-        //static const u16 MARKER_APP03 = 0xFFE3U;
-        //static const u16 MARKER_APP04 = 0xFFE4U;
-        //static const u16 MARKER_APP05 = 0xFFE5U;
-        //static const u16 MARKER_APP06 = 0xFFE6U;
-        //static const u16 MARKER_APP07 = 0xFFE7U;
-        //static const u16 MARKER_APP08 = 0xFFE8U;
-        //static const u16 MARKER_APP09 = 0xFFE9U;
-        //static const u16 MARKER_APP10 = 0xFFEAU;
-        //static const u16 MARKER_APP11 = 0xFFEBU;
-        //static const u16 MARKER_APP12 = 0xFFECU;
-        //static const u16 MARKER_APP13 = 0xFFEDU;
-        //static const u16 MARKER_APP14 = 0xFFEEU;
-        //static const u16 MARKER_APP15 = 0xFFEFU;
+        //static const u8 MARKER_COM   = 0xFEU;
+        //static const u8 MARKER_APP00 = 0xE0U;
+        //static const u8 MARKER_APP01 = 0xE1U;
+        //static const u8 MARKER_APP02 = 0xE2U;
+        //static const u8 MARKER_APP03 = 0xE3U;
+        //static const u8 MARKER_APP04 = 0xE4U;
+        //static const u8 MARKER_APP05 = 0xE5U;
+        //static const u8 MARKER_APP06 = 0xE6U;
+        //static const u8 MARKER_APP07 = 0xE7U;
+        //static const u8 MARKER_APP08 = 0xE8U;
+        //static const u8 MARKER_APP09 = 0xE9U;
+        //static const u8 MARKER_APP10 = 0xEAU;
+        //static const u8 MARKER_APP11 = 0xEBU;
+        //static const u8 MARKER_APP12 = 0xECU;
+        //static const u8 MARKER_APP13 = 0xEDU;
+        //static const u8 MARKER_APP14 = 0xEEU;
+        //static const u8 MARKER_APP15 = 0xEFU;
 
-        //static const u16 MARKER_APP00_JFIF = MARKER_APP00;
-        //static const u16 MARKER_APP01_EXIF = MARKER_APP01;
-        //static const u16 MARKER_APP02_ICC = MARKER_APP02;
-        //static const u16 MARKER_APP14_ADOBE = MARKER_APP14;
+        //static const u8 MARKER_APP00_JFIF = MARKER_APP00;
+        //static const u8 MARKER_APP01_EXIF = MARKER_APP01;
+        //static const u8 MARKER_APP02_ICC = MARKER_APP02;
+        //static const u8 MARKER_APP14_ADOBE = MARKER_APP14;
 
         static const u8 MARKER_RST0 = 0xD0U;
         static const u8 MARKER_RST1 = 0xD1U;
@@ -1128,93 +1131,64 @@ namespace cppimg
             return (x>>8) | (x<<8);
         }
 
-        static inline s32 fixedPointRound(s32 x, s32 shift)
+        static inline s32 fixedPointShift(s32 x, s32 shift)
         {
-            return (x + ((1<<shift)-1)) >> shift;
+            return x >> shift;
+        }
+
+        template<typename T=s32>
+        static inline T fixedPointRound(s32 x, s32 shift)
+        {
+            return static_cast<T>((x + ((1<<shift)-1)) >> shift);
         }
 
         static inline u8 clamp8bits(s32 x)
         {
-            return 0<=x? ((x<=255)? x : 255) : 0;
-        }
-
-        static inline bool readSegment(Segment& segment, IStream& stream)
-        {
-            return 0<=stream.read(sizeof(u16), &segment.marker_);
-        }
-
-        static inline bool readMarker(u8& marker, IStream& stream)
-        {
-            if(stream.read(sizeof(u8), &marker)<0){
-                return false;
-            }
-            if(0xFFU != marker){
-                return false;
-            }
-            return 0<=stream.read(sizeof(u8), &marker);
-        }
-
-        static inline bool read16(u16& x, IStream& stream)
-        {
-            if(0<=stream.read(sizeof(u16), &x)){
-                x = swapEndian(x);
-                return true;
-            }
-            return false;
-        }
-
-        static inline bool readLength(Segment& segment, IStream& stream)
-        {
-            if(0<=stream.read(sizeof(u16), &segment.length_)){
-                segment.length_ = swapEndian(segment.length_);
-                return 2<=segment.length_;
-            }
-            return false;
-        }
-
-        static inline bool skipSegment(const Segment& segment, IStream& stream)
-        {
-            CPPIMG_ASSERT(2<=segment.length_);
-            return stream.seek(segment.length_-2, SEEK_CUR);
+            static const u8 u0 = 0;
+            static const u8 u255 = 255;
+            return 0<=x? ((x<=255)? static_cast<u8>(x) : u255) : u0;
         }
 
         /**
         @brief Read Define Quantization Table
         */
-        static bool readDQT(Context& context, const Segment& segment, IStream& stream);
+        static bool readDQT(Context& context, const Segment& segment);
         /**
         @brief Read Define Huffman Table
         */
-        static bool readDHT(Context& context, const Segment& segment, IStream& stream);
+        static bool readDHT(Context& context, const Segment& segment);
         /**
         @brief Read Define Restart Interval
         */
 
-        static bool readDRI(Context& context, const Segment& segment, IStream& stream);
+        static bool readDRI(Context& context, const Segment& segment);
         /**
         @brief Read Define Number of Lines
         */
 
-        static bool readDNL(Context& context, const Segment& segment, IStream& stream);
+        static bool readDNL(Context& context, const Segment& segment);
         /**
         @brief Read Start Of Frame
         */
 
-        static bool readSOF(Context& context, const Segment& segment, IStream& stream);
+        static bool readSOF(Context& context, const Segment& segment);
         /**
         @brief Read Start Of Scan
         */
-        static bool readSOS(Context& context, const Segment& segment, IStream& stream);
+        static bool readSOS(Context& context, const Segment& segment);
 
-        static bool readJFXX(Context& context, const Segment& segment, IStream& stream);
+        static bool readJFXX(Context& context, const Segment& segment);
 
-        static bool decode(Context& context, IStream& stream);
-        static bool decodeMCU(Context& context, IStream& stream);
-        static s32 decodeHuffmanCode(Context& context, IStream& stream, s32 type, s32 table);
-        static bool decodeHuffmanBlock(Context& context, IStream& stream, s32 component);
+        static bool decode(Context& context);
+        static bool decodeMCU(Context& context);
+        static s32 decodeHuffmanCode(Context& context, s32 type, s32 table);
+        static bool decodeHuffmanBlock(Context& context, s32 component);
         static void inverseQuantization(Context& context, s32 component);
-        static void inverseDCT(Context& context, s32 component);
-        static void toRGB(Context& context, s32 ux, s32 uy);
+        static void inverseDCT(Context& context);
+        static void copyComponents(Context& context, s32 ux, s32 uy);
+        static void toGray(Context& context);
+        static void toRGB(Context& context);
+        static void filter(Context& context, s32 component);
     };
 
 
@@ -1236,7 +1210,7 @@ namespace cppimg
         @param colorType
         @param stream
         */
-        static bool read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream);
+        static bool read(s32& width, s32& height, ColorType& colorType, void* image, Stream& stream);
     };
 #endif
 
@@ -1296,7 +1270,7 @@ namespace
             stream_ = CPPIMG_NULL;
         }
     private:
-        s32 pos_;
+        off_t pos_;
         Stream* stream_;
     };
 }
@@ -1309,7 +1283,8 @@ namespace
     s32 IFStream::read(size_t size, void* dst)
     {
         CPPIMG_ASSERT(CPPIMG_NULL != file_);
-        return 0<fread(dst, size, 1, file_)? 1 : -1;
+        s32 num = 0<size? 1 : 0;
+        return num == fread(dst, size, num, file_)? 1 : -1;
     }
 
     IFStream& IFStream::operator=(IFStream&& rhs)
@@ -1332,7 +1307,8 @@ namespace
     s32 OFStream::write(size_t size, const void* dst)
     {
         CPPIMG_ASSERT(CPPIMG_NULL != file_);
-        return 0<fwrite(dst, size, 1, file_)? 1 : -1;
+        s32 num = 0<size? 1 : 0;
+        return num == fwrite(dst, size, num, file_)? 1 : -1;
     }
 
     OFStream& OFStream::operator=(OFStream&& rhs)
@@ -1352,7 +1328,7 @@ namespace
     //--- BMP
     //---
     //----------------------------------------------------
-    bool BMP::read24(u8* image, s32 width, s32 height, bool leftBottom, IStream& stream)
+    bool BMP::read24(u8* image, s32 width, s32 height, bool leftBottom, Stream& stream)
     {
         s32 pitch = width * 3;
         s32 diff = (pitch + 0x03U) & (~0x03U);
@@ -1397,7 +1373,7 @@ namespace
         return true;
     }
 
-    bool BMP::read32(u8* image, s32 width, s32 height, bool leftBottom, IStream& stream)
+    bool BMP::read32(u8* image, s32 width, s32 height, bool leftBottom, Stream& stream)
     {
         s32 pitch = width * 4;
 
@@ -1433,7 +1409,7 @@ namespace
         return true;
     }
 
-    bool BMP::read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream)
+    bool BMP::read(s32& width, s32& height, ColorType& colorType, void* image, Stream& stream)
     {
         if(!stream.valid()){
             return false;
@@ -1526,7 +1502,7 @@ namespace
         return true;
     }
 
-    bool BMP::write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image)
+    bool BMP::write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image)
     {
         CPPIMG_ASSERT(CPPIMG_NULL != image);
         if(!stream.valid()){
@@ -1659,7 +1635,7 @@ namespace
     //--- TGA
     //---
     //----------------------------------------------------
-    bool TGA::readInternal(s32 width, s32 height, u8 bpp, u8* image, IStream& stream)
+    bool TGA::readInternal(s32 width, s32 height, u8 bpp, u8* image, Stream& stream)
     {
         //transpose
         s32 rowBytes = width*bpp;
@@ -1685,7 +1661,7 @@ namespace
         return true;
     }
 
-    bool TGA::readRLEInternal(s32 width, s32 height, u8 bpp, u8* image, IStream& stream)
+    bool TGA::readRLEInternal(s32 width, s32 height, u8 bpp, u8* image, Stream& stream)
     {
         //transpose
         s32 rowBytes = width*bpp;
@@ -1801,7 +1777,7 @@ namespace
         }
     }
 #if 0
-    bool TGA::write32(OStream& stream, s32 width, s32 height, const u8* image)
+    bool TGA::write32(Stream& stream, s32 width, s32 height, const u8* image)
     {
         static const u32 bpp = 4;
         s32 pixels = width*height;
@@ -1820,7 +1796,7 @@ namespace
     }
 #endif
 
-    bool TGA::writeUncompress(OStream& stream, s32 width, s32 height, u8 bpp, const u8* image)
+    bool TGA::writeUncompress(Stream& stream, s32 width, s32 height, u8 bpp, const u8* image)
     {
         u8 tmp[4];
         s32 line = width*bpp;
@@ -1858,7 +1834,7 @@ namespace
         return true;
     }
 
-    bool TGA::writeRLE(OStream& stream, s32 width, s32 height, u8 bpp, const u8* image)
+    bool TGA::writeRLE(Stream& stream, s32 width, s32 height, u8 bpp, const u8* image)
     {
         u8 tmp[4];
         s32 x=0,y=height-1;
@@ -1908,7 +1884,7 @@ namespace
         return true;
     }
 
-    bool TGA::read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream)
+    bool TGA::read(s32& width, s32& height, ColorType& colorType, void* image, Stream& stream)
     {
         if(!stream.valid()){
             return false;
@@ -1983,7 +1959,7 @@ namespace
         return true;
     }
 
-    bool TGA::write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image, s32 options)
+    bool TGA::write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image, s32 options)
     {
         CPPIMG_ASSERT(CPPIMG_NULL != image);
         if(!stream.valid()){
@@ -2048,7 +2024,7 @@ namespace
     //--- PPM
     //---
     //----------------------------------------------------
-    bool PPM::write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image)
+    bool PPM::write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image)
     {
         CPPIMG_ASSERT(CPPIMG_NULL != image);
         if(!stream.valid()){
@@ -2107,7 +2083,7 @@ namespace
     //--- PNG
     //---
     //----------------------------------------------------
-    bool PNG::read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream)
+    bool PNG::read(s32& width, s32& height, ColorType& colorType, void* image, Stream& stream)
     {
         if(!stream.valid()){
             return false;
@@ -2249,7 +2225,7 @@ namespace
     }
 
 #if 0
-    bool PNG::write(OStream& stream, s32 width, s32 height, ColorType colorType, const void* image)
+    bool PNG::write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image)
     {
         CPPIMG_ASSERT(CPPIMG_NULL != image);
         if(!stream.valid()){
@@ -2315,7 +2291,7 @@ namespace
 
     //--- PNG::ChunkIHDR
     //----------------------------------------------------
-    bool PNG::ChunkIHDR::read(IStream& istream)
+    bool PNG::ChunkIHDR::read(Stream& istream)
     {
         if(istream.read(Size, &width_)<0){
             return false;
@@ -2406,7 +2382,7 @@ namespace
 
     //--- PNG::ChunkPLTE
     //----------------------------------------------------
-    bool PNG::ChunkPLTE::read(IStream& stream)
+    bool PNG::ChunkPLTE::read(Stream& stream)
     {
         //It's assumed that (chunk size mod 3) equals zero
         if(0 != (length_%3)){
@@ -2464,12 +2440,11 @@ namespace
     bool PNG::ChunkIDAT::terminate()
     {
         CPPIMG_FREE(src_);
-        src_ = CPPIMG_NULL;
         return true;
     }
 
 
-    bool PNG::ChunkIDAT::read(IStream& stream)
+    bool PNG::ChunkIDAT::read(Stream& stream)
     {
         u8* src = src_ + srcSize_;
         if(stream.read(length_, src)<0){
@@ -2543,7 +2518,7 @@ namespace
     }
 
 #if 0
-    bool PNG::ChunkIDAT::write(OStream& stream, s32 height, const u8* image)
+    bool PNG::ChunkIDAT::write(Stream& stream, s32 height, const u8* image)
     {
         struct ReleaseMemory
         {
@@ -2725,7 +2700,7 @@ namespace
         return ((x>>24)) | ((x>>8)&0xFF00U) | ((x&0xFF00U)<<8) | ((x&0xFFU)<<24);
     }
 
-    bool PNG::readHeader(IStream& stream)
+    bool PNG::readHeader(Stream& stream)
     {
         u64 signature;
         if(stream.read(sizeof(u64), &signature)<0){
@@ -2737,7 +2712,7 @@ namespace
         return true;
     }
 
-    bool PNG::checkCRC32(const Chunk& chunk, IStream& stream)
+    bool PNG::checkCRC32(const Chunk& chunk, Stream& stream)
     {
         static const u32 BufferSize = 1024;
         u8 buffer[BufferSize];
@@ -2767,7 +2742,7 @@ namespace
         return readCrc == crc;
     }
 
-    bool PNG::skipChunk(const Chunk& chunk, IStream& stream)
+    bool PNG::skipChunk(const Chunk& chunk, Stream& stream)
     {
         u32 size = chunk.length_ + 4;//chunk data size + crc size
         return stream.seek(size, SEEK_CUR);
@@ -2781,7 +2756,7 @@ namespace
     }
 
     template<class T>
-    bool PNG::readHeader(T& chunk, IStream& stream)
+    bool PNG::readHeader(T& chunk, Stream& stream)
     {
         if(stream.read(sizeof(u32)*2, &chunk)<0){
             return false;
@@ -2793,7 +2768,7 @@ namespace
         return true;
     }
 
-    bool PNG::writeChunk(OStream& stream, u32 type, u32 size, const void* data)
+    bool PNG::writeChunk(Stream& stream, u32 type, u32 size, const void* data)
     {
         u32 crc = 0xFFFFFFFFUL;
         crc = updateCRC32(crc, sizeof(u32), reinterpret_cast<const u8*>(&type));
@@ -2826,36 +2801,57 @@ namespace
     //--- JPEG
     //---
     //----------------------------------------------------
-    const u8 JPEG::ZigZag[BLOCK_SIZE] =
+    inline void JPEG::ByteStream::reset()
     {
-        0,  1,  8, 16,  9,  2,  3, 10,
-        17, 24, 32, 25, 18, 11,  4,  5,
-        12, 19, 26, 33, 40, 48, 41, 34,
-        27, 20, 13,  6,  7, 14, 21, 28,
-        35, 42, 49, 56, 57, 50, 43, 36,
-        29, 22, 15, 23, 30, 37, 44, 51,
-        58, 59, 52, 45, 38, 31, 39, 46,
-        53, 60, 61, 54, 47, 55, 62, 63,
-    };
+        bits_ = 0;
+        byte_ = 0;
+    }
 
-    s32 JPEG::Stream::readBits(IStream& stream, s32 bits)
+    inline s32 JPEG::ByteStream::read(size_t size, void* bytes)
+    {
+        return stream_->read(size, bytes);
+    }
+
+    inline s32 JPEG::ByteStream::write(size_t size, void* bytes)
+    {
+        return stream_->write(size, bytes);
+    }
+
+    inline bool JPEG::ByteStream::skip(size_t size)
+    {
+        return stream_->seek(size, SEEK_CUR);
+    }
+
+    s32 JPEG::ByteStream::readByte()
+    {
+        u8 b = 0;
+        if(stream_->read(1, &b)<=0){
+            return -1;
+        }
+        if(b != 0xFFU){
+            return b;
+        }
+        do{
+            if(stream_->read(1, &b)<=0){
+                return -1;
+            }
+        }while(b == 0xFFU);
+        if(0 == b){
+            return 0xFFU;
+        }
+        return b;
+    }
+
+    s32 JPEG::ByteStream::readBits(s32 bits)
     {
         u16 result = 0;
         while(0<bits){
             if(bits_<=0){
-                if(stream.read(1, &byte_)<=0){
+                s32 b = readByte();
+                if(b<0){
                     return -1;
                 }
-                if(0xFFU == byte_){
-                    do{
-                        if(stream.read(1, &byte_)<=0){
-                            return -1;
-                        }
-                    }while(0xFFU == byte_);
-                    if(0x00U == byte_){
-                        byte_ = 0xFFU;
-                    }
-                }
+                byte_ = static_cast<u8>(b);
                 bits_ = 8;
             }
             s32 n = minimum(bits_, bits);
@@ -2867,16 +2863,17 @@ namespace
         return result;
     }
 
-    s32 JPEG::Stream::writeBits(OStream& stream, s32 bits, s32 value)
+    //----------------------------------------------------
+    s32 JPEG::ByteStream::writeBits(s32 bits, s32 value)
     {
         while(0<bits){
             if(bits_<=0){
-                if(stream.write(1, &byte_)<=0){
+                if(stream_->write(1, &byte_)<=0){
                     return -1;
                 }
                 if(0xFFU == byte_){
                     byte_ = 0;
-                    if(stream.write(1, &byte_)<=0){
+                    if(stream_->write(1, &byte_)<=0){
                         return -1;
                     }
                 } else{
@@ -2894,16 +2891,55 @@ namespace
         return 1;
     }
 
-    s32 JPEG::Stream::fillByte(OStream& stream)
+    s32 JPEG::ByteStream::fillByte()
     {
         if(bits_<=0){
             return 1;
         }
         s32 n = bits_;
         s32 value = (1<<n)-1;
-        return writeBits(stream, n, value);
+        return writeBits(n, value);
     }
 
+    bool JPEG::ByteStream::readSegment(Segment& segment)
+    {
+        if(stream_->read(4, &segment)<=0){
+            return false;
+        }
+        if(0xFFU != segment.ff_){
+            return false;
+        }
+        segment.length_ = swapEndian(segment.length_);
+        return 2<=segment.length_;
+    }
+
+    bool JPEG::ByteStream::readMarker(u8& marker)
+    {
+        if(stream_->read(sizeof(u8), &marker)<0){
+            return false;
+        }
+        if(0xFFU != marker){
+            return false;
+        }
+        return 0<=stream_->read(sizeof(u8), &marker);
+    }
+
+    bool JPEG::ByteStream::read16(u16& x)
+    {
+        if(0<=stream_->read(sizeof(u16), &x)){
+            x = swapEndian(x);
+            return true;
+        }
+        return false;
+    }
+
+    inline bool JPEG::ByteStream::skipSegment(const Segment& segment)
+    {
+        CPPIMG_ASSERT(2<=segment.length_);
+        return stream_->seek(segment.length_-2, SEEK_CUR);
+    }
+
+    //----------------------------------------------------
     bool JPEG::FrameHeader::getMaxSampling()
     {
         maxVerticalSampling_ = 0;
@@ -2915,7 +2951,20 @@ namespace
         return 0<maxVerticalSampling_ && 0<maxHorizontalSampling_;
     }
 
-    bool JPEG::read(s32& width, s32& height, ColorType& colorType, void* image, IStream& stream)
+    //----------------------------------------------------
+    const u8 JPEG::ZigZag[BLOCK_SIZE] =
+    {
+        0,  1,  8, 16,  9,  2,  3, 10,
+        17, 24, 32, 25, 18, 11,  4,  5,
+        12, 19, 26, 33, 40, 48, 41, 34,
+        27, 20, 13,  6,  7, 14, 21, 28,
+        35, 42, 49, 56, 57, 50, 43, 36,
+        29, 22, 15, 23, 30, 37, 44, 51,
+        58, 59, 52, 45, 38, 31, 39, 46,
+        53, 60, 61, 54, 47, 55, 62, 63,
+    };
+
+    bool JPEG::read(s32& width, s32& height, ColorType& colorType, void* image, Stream& stream)
     {
         if(!stream.valid()){
             return false;
@@ -2923,11 +2972,11 @@ namespace
 
         SeekSet seekSet(stream.tell(), &stream);
         {
-            u16 soi;
-            if(stream.read(sizeof(u16), &soi)<=0){
+            Segment soi;
+            if(stream.read(sizeof(u16), &soi.ff_)<=0){
                 return false;
             }
-            if(MARKER_SOI != soi){
+            if(MARKER_SOI != soi.marker_){
                 return false;
             }
         }
@@ -2937,18 +2986,16 @@ namespace
         AutoFree autoFree(context);
         CPPIMG_MEMSET(context, 0, sizeof(Context));
         context->flags_ |= Flag_SOI;
+        context->byteStream_ = ByteStream(&stream);
         bool loop = true;
         Segment segment;
         while(loop){
-            if(!readSegment(segment, stream)){
+            if(!context->byteStream_.readSegment(segment)){
                 return false;
             }
             if(MARKER_EOI == segment.marker_){
                 loop = false;
                 break;
-            }
-            if(!readLength(segment, stream)){
-                return false;
             }
 
             switch(segment.marker_){
@@ -2956,24 +3003,24 @@ namespace
                 return false;
 
             case MARKER_DQT:
-                if(!readDQT(*context, segment, stream)){
+                if(!readDQT(*context, segment)){
                     return false;
                 }
                 context->flags_ |= Flag_DQT;
                 break;
             case MARKER_DHT:
-                if(!readDHT(*context, segment, stream)){
+                if(!readDHT(*context, segment)){
                     return false;
                 }
                 context->flags_ |= Flag_DHT;
                 break;
             case MARKER_DRI:
-                if(!readDRI(*context, segment, stream)){
+                if(!readDRI(*context, segment)){
                     return false;
                 }
                 break;
             case MARKER_DNL:
-                if(!readDNL(*context, segment, stream)){
+                if(!readDNL(*context, segment)){
                     return false;
                 }
                 break;
@@ -2990,24 +3037,24 @@ namespace
             case MARKER_SOFD:
             case MARKER_SOFE:
             case MARKER_SOFF:
-                if(!readSOF(*context, segment, stream)){
+                if(!readSOF(*context, segment)){
                     return false;
                 }
                 break;
             case MARKER_APP0:
-                if(!readJFXX(*context, segment, stream)){
+                if(!readJFXX(*context, segment)){
                     return false;
                 }
                 break;
             case MARKER_SOS:
-                if(!readSOS(*context, segment, stream)){
+                if(!readSOS(*context, segment)){
                     return false;
                 }
                 loop = false;
                 context->flags_ |= Flag_SOS;
                 break;
             default:
-                if(!skipSegment(segment, stream)){
+                if(!context->byteStream_.skipSegment(segment)){
                     return false;
                 }
                 break;
@@ -3019,29 +3066,45 @@ namespace
 
         width = context->frame_.width_;
         height = context->frame_.height_;
+        // Support only gray and YCrCb formats
         switch(context->frame_.numComponents_){
         case 1:
             colorType = ColorType_GRAY;
             break;
-        default:
+        case 3:
             colorType = ColorType_RGB;
             break;
+        default:
+            return false;
         }
         if(CPPIMG_NULL == image){
             return true;
         }
 
-        context->rgba_ = reinterpret_cast<u8*>(image);
+        context->rgb_ = reinterpret_cast<u8*>(image);
         context->createCosTable();
-        if(!decode(*context, stream)){
+        context->work_ = reinterpret_cast<s16*>(CPPIMG_MALLOC(sizeof(s16)*width*height*context->frame_.numComponents_));
+        if(!decode(*context)){
+            return false;
+        }
+        switch(context->frame_.numComponents_){
+        case 1:
+            toGray(*context);
+            break;
+        case 3:
+            toRGB(*context);
+            break;
+        default:
             return false;
         }
         seekSet.clear();
         return true;
     }
 
-    bool JPEG::readDQT(Context& context, const Segment& segment, IStream& stream)
+    bool JPEG::readDQT(Context& context, const Segment& segment)
     {
+        ByteStream& stream = context.byteStream_;
+
         s32 size = 2;
         while(size<segment.length_){
             u8 precisionAndNumber;
@@ -3071,12 +3134,12 @@ namespace
                 }
                 size += QT_SIZE;
             }else{
-                u8 factors16[QT_SIZE];
+                u16 factors16[QT_SIZE];
                 if(stream.read(QT_SIZE*2, factors16)<=0){
                     return false;
                 }
                 for(s32 i=0; i<QT_SIZE; ++i){
-                    quantization.factors_[ZigZag[i]] = factors16[i];
+                    quantization.factors_[ZigZag[i]] = swapEndian(factors16[i]);
                 }
                 size += QT_SIZE*2;
             }
@@ -3084,10 +3147,11 @@ namespace
         return size==segment.length_;
     }
 
-    bool JPEG::readDHT(Context& context, const Segment& segment, IStream& stream)
+    bool JPEG::readDHT(Context& context, const Segment& segment)
     {
-        u8 bits[HT_BITS_TABLE];
+        ByteStream& stream = context.byteStream_;
 
+        u8 bits[HT_BITS_TABLE];
         s32 size = 2;
         while(size<segment.length_){
             u8 classAndId; //upper:precision, lower:id of huffman table
@@ -3120,39 +3184,45 @@ namespace
             }
 
             //Generate size table
-            s32 j=0;
             s32 k=0;
-            s32 code = 0;
-            for(s32 i=1; i<=HT_BITS_TABLE; ++i){
-                u8 n = bits[i-1];
-                if(n<=0){
-                    continue;
+            for(u8 i=1; i<=HT_BITS_TABLE; ++i){
+                for(u8 j=1; j<=bits[i-1]; ++j, ++k){
+                    table.size_[k] = i;
                 }
-                table.size_[j] = i - code;
-                table.code_[j] = n;
-                code = i;
-                ++j;
-                if(stream.read(n, table.value_+k)<=0){
-                    return false;
+            }
+
+            //Generate code table
+            k=0;
+            u16 code = 0;
+            u8 si = table.size_[0];
+            for(;;){
+                for(;table.size_[k] == si; ++k,++code){
+                    table.code_[k] = code;
                 }
-                k += n;
-                size += n;
+                if(table.number_<=k){
+                    break;
+                }
+                do{
+                    code <<= 1;
+                    ++si;
+                }while(table.size_[k] != si);
             }
-            while(j<HT_BITS_TABLE){
-                table.size_[j] = 0;
-                table.code_[j] = 0;
-                ++j;
+            if(stream.read(table.number_, table.value_)<=0){
+                return false;
             }
+            size += table.number_;
 
         } //while(size<segment.length_)
         return size==segment.length_;
     }
 
-    bool JPEG::readDRI(Context& context, const Segment& segment, IStream& stream)
+    bool JPEG::readDRI(Context& context, const Segment& segment)
     {
+        ByteStream& stream = context.byteStream_;
+
         s32 size = 2;
         while(size<segment.length_){
-            if(!read16(context.restartInterval_, stream)){
+            if(!stream.read16(context.restartInterval_)){
                 return false;
             }
             size += 2;
@@ -3160,11 +3230,12 @@ namespace
         return size==segment.length_;
     }
 
-    bool JPEG::readDNL(Context& context, const Segment& segment, IStream& stream)
+    bool JPEG::readDNL(Context& context, const Segment& segment)
     {
+        ByteStream& stream = context.byteStream_;
         s32 size = 2;
         while(size<segment.length_){
-            if(!read16(context.numberOfLines_, stream)){
+            if(!stream.read16(context.numberOfLines_)){
                 return false;
             }
             size += 2;
@@ -3172,15 +3243,16 @@ namespace
         return size==segment.length_;
     }
 
-    bool JPEG::readSOF(Context& context, const Segment& segment, IStream& stream)
+    bool JPEG::readSOF(Context& context, const Segment& segment)
     {
+        ByteStream& stream = context.byteStream_;
         if(stream.read(1, &context.frame_.precision_)<=0){
             return false;
         }
-        if(!read16(context.frame_.height_, stream)){
+        if(!stream.read16(context.frame_.height_)){
             return false;
         }
-        if(!read16(context.frame_.width_, stream)){
+        if(!stream.read16(context.frame_.width_)){
             return false;
         }
         if(stream.read(1, &context.frame_.numComponents_)<=0){
@@ -3205,8 +3277,9 @@ namespace
         return size==segment.length_;
     }
 
-    bool JPEG::readSOS(Context& context, const Segment& segment, IStream& stream)
+    bool JPEG::readSOS(Context& context, const Segment& segment)
     {
+        ByteStream& stream = context.byteStream_;
         if(stream.read(1, &context.scan_.numComponents_)<=0){
             return false;
         }
@@ -3233,8 +3306,9 @@ namespace
         return size==segment.length_;
     }
 
-    bool JPEG::readJFXX(Context& context, const Segment& segment, IStream& stream)
+    bool JPEG::readJFXX(Context& context, const Segment& segment)
     {
+        ByteStream& stream = context.byteStream_;
         s32 size = 2;
         if(stream.read(5, context.jfxx_.id_)<=0){
             return false;
@@ -3264,7 +3338,7 @@ namespace
             }
             size += 9;
             s32 thumbSize = 3 * jfif.xthumb_ * jfif.ythumb_;
-            if(!stream.seek(thumbSize, SEEK_CUR)){
+            if(!stream.skip(thumbSize)){
                 return false;
             }
             size += thumbSize;
@@ -3279,7 +3353,7 @@ namespace
         return size == segment.length_;
     }
 
-    bool JPEG::decode(Context& context, IStream& stream)
+    bool JPEG::decode(Context& context)
     {
         s32 vblocks = blocks(context.frame_.height_);
         s32 hblocks = blocks(context.frame_.width_);
@@ -3297,35 +3371,33 @@ namespace
         if(0<(hblocks - (maxHSampling*hUnits))){
             ++hUnits;
         }
-        //s32 size_ = (vUnits * maxVSampling) * (hUnits * maxHSampling) * BLOCK_SIZE;
-        //context.rgba_ = reinterpret_cast<u8*>(CPPIMG_MALLOC(sizeof(u8)*context.size_*3));
 
         s32 unitSize = maxVSampling * maxHSampling * BLOCK_SIZE;
         CPPIMG_MEMSET(&context.components_[0], 0x00U, sizeof(u8)*unitSize);
-        for(s32 i=0; i<unitSize; ++i){
-            context.components_[1][i] = 0x80U;
-            context.components_[2][i] = 0x80U;
-            context.components_[3][i] = 0x80U;
-        }
+        CPPIMG_MEMSET(&context.components_[1], 0x00U, sizeof(s16)*unitSize);
+        CPPIMG_MEMSET(&context.components_[2], 0x00U, sizeof(s16)*unitSize);
+        CPPIMG_MEMSET(&context.components_[3], 0x00U, sizeof(s16)*unitSize);
 
         context.directCurrents_[0] = 0;
         context.directCurrents_[1] = 0;
         context.directCurrents_[2] = 0;
         context.directCurrents_[3] = 0;
 
+        ByteStream& stream = context.byteStream_;
+
         s32 restartCount = 0;
         for(s32 uy=0; uy<vUnits; ++uy){
             for(s32 ux=0; ux<hUnits; ++ux){
-                if(!decodeMCU(context, stream)){
+                if(!decodeMCU(context)){
                     return false;
                 }
-                toRGB(context, ux, uy);
+                copyComponents(context, ux, uy);
                 if(0<context.restartInterval_){
                     if(context.restartInterval_ <= ++restartCount){
                         restartCount = 0;
-                        context.stream_.bits_ = 0;
+                        stream.reset();
                         u8 marker;
-                        if(!readMarker(marker, stream)){
+                        if(!stream.readMarker(marker)){
                             return false;
                         }
                         if(MARKER_RST0<=marker && marker<=MARKER_RST7){
@@ -3342,7 +3414,7 @@ namespace
         return true;
     }
 
-    bool JPEG::decodeMCU(Context& context, IStream& stream)
+    bool JPEG::decodeMCU(Context& context)
     {
         s32 unitWidth = context.frame_.maxHorizontalSampling_ << BLOCK_SHIFT;
 
@@ -3355,13 +3427,12 @@ namespace
             s32 hCopy = hDuplicate << BLOCK_SHIFT;
             for(s32 v=0; v<vSampling; ++v){
                 for(s32 h=0; h<hSampling; ++h){
-                    if(!decodeHuffmanBlock(context, stream, i)){
+                    if(!decodeHuffmanBlock(context, i)){
                         return false;
                     }
                     inverseQuantization(context, i);
-                    inverseDCT(context, i);
-
-                    s32* component = context.components_[i] + unitWidth*(v << BLOCK_SHIFT) + (h << BLOCK_SHIFT);
+                    inverseDCT(context);
+                    s16* component = context.components_[i] + unitWidth*(v << BLOCK_SHIFT) + (h << BLOCK_SHIFT);
                     for(s32 j=0; j<vCopy; ++j){
                         for(s32 k=0; k<hCopy; ++k){
                             component[j*unitWidth + k] = context.block_[((j/vDuplicate) << BLOCK_SHIFT) + (k/hDuplicate)];
@@ -3373,40 +3444,42 @@ namespace
         return true;
     }
 
-    s32 JPEG::decodeHuffmanCode(Context& context, IStream& stream, s32 type, s32 table)
+    s32 JPEG::decodeHuffmanCode(Context& context, s32 type, s32 table)
     {
+        ByteStream& stream = context.byteStream_;
+
         const HuffmanTable& huffmanTable = context.huffman_[type][table];
-        u16 bits = 0;
         u16 code = 0;
-        s32 index = 0;
-        for(s32 length = 0; length<HT_BITS_TABLE; ++length){
-            u8 l = huffmanTable.size_[length];
-            u8 n = huffmanTable.code_[length];
-            s32 b = context.stream_.readBits(stream, l);
-            if(b<0){
-                break;
+        u16 length = 0;
+        s32 next = 0;
+        s32 k = 0;
+        while(k<huffmanTable.number_ && length<HT_BITS_TABLE){
+            ++length;
+            code <<= 1;
+            next = stream.readBits(1);
+            if(next<0){
+                return -1;
             }
-            bits <<= l;
-            u16 cn = bits + n;
-            code = (code<<l) | b;
-            if(code<cn){
-                index += (code-bits);
-                return (index<HT_MAX_SIZE)? huffmanTable.value_[index].code_ : -1;
+            code |= next;
+            for(;huffmanTable.size_[k] == length; ++k){
+                if(huffmanTable.code_[k] == code){
+                    return huffmanTable.value_[k];
+                }
             }
-            bits = cn;
-            index += n;
         }
         return -1;
     }
 
-    bool JPEG::decodeHuffmanBlock(Context& context, IStream& stream, s32 component)
+    bool JPEG::decodeHuffmanBlock(Context& context, s32 component)
     {
+        ByteStream& stream = context.byteStream_;
+
         //DC
-        s32 category = decodeHuffmanCode(context, stream, 0, context.scan_.components_[component].getDCHuffman());
+        s32 category = decodeHuffmanCode(context, 0, context.scan_.components_[component].getDCHuffman());
         if(category<0){
             return false;
         }else if(0<category){
-            s32 difference = context.stream_.readBits(stream, category);
+            s16 difference = static_cast<s16>(stream.readBits(category));
             if(0 == (difference & (1<<(category-1)))){
                 difference -= (1<<category) - 1;
             }
@@ -3416,20 +3489,20 @@ namespace
 
         //AC
         for(s32 k=1; k<BLOCK_SIZE;){
-            s32 runCategory = decodeHuffmanCode(context, stream, 1, context.scan_.components_[component].getACHuffman());
+            s32 runCategory = decodeHuffmanCode(context, 1, context.scan_.components_[component].getACHuffman());
             if(runCategory<0){
                 return false;
             }else if(0==runCategory){
-                do{
+                while(k<BLOCK_SIZE){
                     context.dct_[ZigZag[k++]] = 0;
-                }while(k<BLOCK_SIZE);
+                }
                 break;
             }
             s32 runLength = runCategory>>4;
             category = runCategory & 0x0FU;
-            s32 ac = 0;
+            s16 ac = 0;
             if(0 != category){
-                ac = context.stream_.readBits(stream, category);
+                ac = static_cast<s16>(stream.readBits(category));
                 if(0 == (ac & (1<<(category-1)))){
                     ac -= (1<<category) - 1;
                 }
@@ -3459,60 +3532,36 @@ namespace
         }
     }
 
-    void JPEG::inverseDCT(Context& context, s32 component)
+    void JPEG::inverseDCT(Context& context)
     {
         s32 levelShift = context.frame_.precision_<=8? 128 : 2048;
-#if 1
-        levelShift <<= FIXED_POINT_SHIFT;
+        levelShift <<= FIXED_POINT_SHIFT2;
         for(s32 y=0; y<BLOCK_WIDTH; ++y){
-            s32* block = context.block_ + y*BLOCK_WIDTH;
-            for(s32 x=0; x<BLOCK_WIDTH; ++x){
-                const s32* csy = &context.cosine_[y][0];
-                const s32* csx = &context.cosine_[x][0];
-                s32 sum = 0;
-                for(s32 v=0; v<BLOCK_WIDTH; ++v){
-                    const s32* dct = context.dct_ + v*BLOCK_WIDTH;
-                    for(s32 u=0; u<BLOCK_WIDTH; ++u){
-                        s32 c = fixedPointRound(csy[v]*csx[u], FIXED_POINT_SHIFT);
-                        sum += dct[u] * c;
-                    }
-                }
-                block[x] = (sum>>2) + levelShift;
-            }
-        }
-
-#else
-        f32 mCosT[BLOCK_WIDTH][BLOCK_WIDTH];
-        for( int n=0; n<8; n++ )
-		for( int m=0; m<8; m++ )
-			mCosT[n][m] = cos(( 2 * m + 1) * n * (3.14159265f / 16));
-
-        const float invSqrt2 = 1.0f/1.41421356f;
-        for(s32 y=0; y<BLOCK_WIDTH; ++y){
-            s32* block = context.block_ + y*BLOCK_WIDTH;
+            s16* block = context.block_ + y*BLOCK_WIDTH;
             for(s32 x=0; x<BLOCK_WIDTH; ++x){
                 const s16* csy = &context.cosine_[y][0];
                 const s16* csx = &context.cosine_[x][0];
-                float sum = 0.0f;
+                s32 sum = 0;
                 for(s32 v=0; v<BLOCK_WIDTH; ++v){
-                    f32 cv = (v==0) ? invSqrt2 : 1.0f;
-                    const s32* dct = context.dct_ + v*BLOCK_WIDTH;
+                    s32 tcsy = csy[v];
+                    const s16* dct = context.dct_ + v*BLOCK_WIDTH;
                     for(s32 u=0; u<BLOCK_WIDTH; ++u){
-                        f32 cu = (u==0)? invSqrt2 : 1.0f;
-                        sum += cu * cv * dct[u] * mCosT[u][x] * mCosT[v][y];
+                        s32 c = fixedPointRound(tcsy*csx[u], FIXED_POINT_SHIFT);
+                        sum += dct[u] * c;
                     }
                 }
-                block[x] = static_cast<s32>(sum/4 + levelShift);
+                block[x] = static_cast<s16>(fixedPointRound(sum, FIXED_POINT_SHIFT2+2) + levelShift);
             }
         }
-#endif
     }
 
-    void JPEG::toRGB(Context& context, s32 ux, s32 uy)
+    void JPEG::copyComponents(Context& context, s32 ux, s32 uy)
     {
-        s32* Y = context.components_[0];
-        s32* Cb = context.components_[1];
-        s32* Cr = context.components_[2];
+        s16* C[4];
+        C[0] = context.components_[0];
+        C[1] = context.components_[1];
+        C[2] = context.components_[2];
+        C[3] = context.components_[3];
 
         s32 pixelV = uy * (context.frame_.maxVerticalSampling_ << 3);
         s32 pixelH = ux * (context.frame_.maxHorizontalSampling_ << 3);
@@ -3530,50 +3579,126 @@ namespace
             endx = context.frame_.width_ - pixelH;
         }
 
-        s32 offset = (pixelV * context.frame_.width_ + pixelH) * 3;
-        u8* rgb = context.rgba_ + offset;
+        s32 offset = (pixelV * context.frame_.width_ + pixelH) * context.frame_.numComponents_;
+        s16* work = context.work_ + offset;
 
         for(s32 y=0; y<endy; ++y){
             for(s32 x=0; x<endx; ++x){
-                s32 index = (y * context.frame_.width_ + x) * 3;
-                s32 ty = Y[x];
-                s32 tcb = Cb[x];
-                s32 tcr = Cr[x];
-#if 0
-                s16 tr = ty * 64 + tcr * 90;
-                s16 tg = ty * 64 - tcb * 22 - tcr * 46;
-                s16 tb = ty * 64 + tcb * 113;
-                tr = fixedPointRound(tr, 6);
-                tg = fixedPointRound(tg, 6);
-                tb = fixedPointRound(tb, 6);
-#else
-                static const s32 Fixed128 = 0x08U << FIXED_POINT_SHIFT;
-#if 0
-                s32 tr = ty + (tcr - Fixed128)*0x166EU;//Y + (Cr - 128)*1.4020
-                s32 tg = ty - (tcb - Fixed128)*0x0581U - (tcr - Fixed128)*0x0B6CU;
-                s32 tb = ty + (tcb - Fixed128)*0x1C59U;
-                tr = fixedPointRound(tr, FIXED_POINT_SHIFT);
-                tg = fixedPointRound(tg, FIXED_POINT_SHIFT);
-                tb = fixedPointRound(tb, FIXED_POINT_SHIFT);
-#else
-                s32 tr = ty + (tcr - Fixed128) * 1.4020f;
-                s32 tg = ty - (tcb - Fixed128) * 0.3441f - (tcr - Fixed128) * 0.7139f;
-                s32 tb = ty + (tcb - Fixed128) * 1.7718f;
-                tr = fixedPointRound(tr, FIXED_POINT_SHIFT);
-                tg = fixedPointRound(tg, FIXED_POINT_SHIFT);
-                tb = fixedPointRound(tb, FIXED_POINT_SHIFT);
-#endif
-#endif
-                tr = clamp8bits(tr);
-                tg = clamp8bits(tg);
-                tb = clamp8bits(tb);
-                rgb[index+0] = tr;
-                rgb[index+1] = tg;
-                rgb[index+2] = tb;
+                s32 index = (y * context.frame_.width_ + x) * context.frame_.numComponents_;
+                for(s32 c=0; c<context.frame_.numComponents_; ++c){
+                    work[index + c] = C[c][x];
+                }
             }
-            Y += stepx;
-            Cb += stepx;
-            Cr += stepx;
+            C[0] += stepx;
+            C[1] += stepx;
+            C[2] += stepx;
+            C[3] += stepx;
+        }
+    }
+
+    void JPEG::toGray(Context& context)
+    {
+        s32 repeatH = context.frame_.maxHorizontalSampling_ / context.frame_.components_[0].getHorizontal();
+        s32 repeatV = context.frame_.maxVerticalSampling_ / context.frame_.components_[0].getVertical();
+        s32 endX = (context.frame_.width_/repeatH) * repeatH;
+        s32 endY = (context.frame_.height_/repeatV) * repeatV;
+        s16 ratioH = static_cast<s16>(1.0f/repeatH * (f32)(1<<FIXED_POINT_SHIFT));
+        s16 ratioV = static_cast<s16>(1.0f/repeatV * (f32)(1<<FIXED_POINT_SHIFT));
+        s32 step = context.frame_.width_;
+
+        if(1<repeatH || 1<repeatV){
+            s16* Y = context.work_;
+            for(s32 y=0; y<context.frame_.height_; y+=repeatV){
+                for(s32 x=0; x<endX; x+=repeatH){
+                    for(s32 c=1; c<repeatH; ++c){
+                        s32 value = Y[x] * ratioH * (repeatH-c) + Y[x+repeatH] * ratioH * (c);
+                        Y[x+c] = fixedPointRound<s16>(value, FIXED_POINT_SHIFT);
+                    }
+                }
+                if(y<endY){
+                    for(s32 x=0; x<context.frame_.width_; ++x){
+                        s16* NY = Y + step*repeatV;
+                        for(s32 c=1; c<repeatV; ++c){
+                            s32 value = Y[x] * ratioV * (repeatV-c) + NY[x]* ratioV * (c);
+                            Y[x+c*step] = fixedPointRound<s16>(value, FIXED_POINT_SHIFT);
+                        }
+                    }
+                }
+            }
+        }
+        for(s32 y=0; y<context.frame_.height_; ++y){
+            for(s32 x=0; x<context.frame_.width_; ++x){
+                s32 index = (y * context.frame_.width_ + x);
+                s32 ty = fixedPointRound(context.work_[index], FIXED_POINT_SHIFT2);
+                context.rgb_[index] = clamp8bits(ty);
+            }
+        }
+    }
+
+    void JPEG::toRGB(Context& context)
+    {
+        for(s32 c=0; c<context.frame_.numComponents_; ++c){
+            filter(context, c);
+        }
+
+        s32 step = context.frame_.width_ * context.frame_.numComponents_;
+        s16* C = context.work_;
+        for(s32 y=0; y<context.frame_.height_; ++y){
+            s32 row = y * step;
+            for(s32 x=0; x<context.frame_.width_; ++x){
+                s32 index = row + x * context.frame_.numComponents_;
+                s32 ty = C[index+0]<<FIXED_POINT_SHIFT2;
+                s32 tcb = C[index+1];
+                s32 tcr = C[index+2];
+                s32 tr = ty + fixedPointShift((tcr - 0x2000)*0x166E, FIXED_POINT_SHIFT2); //Y + (Cr-128)*1.4020
+                s32 tg = ty - fixedPointShift((tcb - 0x2000)*0x0581 + (tcr - 0x2000)*0x0B6C, FIXED_POINT_SHIFT2); //Y - (Cb-128)*0.3441 - (Cbr-128)*0.7139;
+                s32 tb = ty + fixedPointShift((tcb - 0x2000)*0x1C59, FIXED_POINT_SHIFT2); //Y - (Cb-128)*1.7718;
+                tr = fixedPointRound(tr, FIXED_POINT_SHIFT);
+                tg = fixedPointRound(tg, FIXED_POINT_SHIFT);
+                tb = fixedPointRound(tb, FIXED_POINT_SHIFT);
+
+                context.rgb_[index+0] = clamp8bits(tr);
+                context.rgb_[index+1] = clamp8bits(tg);
+                context.rgb_[index+2] = clamp8bits(tb);
+            }
+        }
+    }
+
+    void JPEG::filter(Context& context, s32 component)
+    {
+        s32 repeatH = context.frame_.maxHorizontalSampling_ / context.frame_.components_[component].getHorizontal();
+        s32 repeatV = context.frame_.maxVerticalSampling_ / context.frame_.components_[component].getVertical();
+        if(repeatH<=1 && repeatV<=1){
+            return;
+        }
+        s32 endX = (context.frame_.width_/repeatH) * repeatH;
+        s32 endY = (context.frame_.height_/repeatV) * repeatV;
+        s16 ratioH = static_cast<s16>(1.0f/repeatH * (f32)(1<<FIXED_POINT_SHIFT));
+        s16 ratioV = static_cast<s16>(1.0f/repeatV * (f32)(1<<FIXED_POINT_SHIFT));
+        s32 numComponents = context.frame_.numComponents_;
+        s32 step = context.frame_.width_ * numComponents;
+
+        s16* C = context.work_ + component;
+        for(s32 y=0; y<context.frame_.height_; y+=repeatV){
+            s32 row = y*step;
+            for(s32 x=0; x<endX; x+=repeatH){
+                s32 i0 = row + x*numComponents;
+                s32 i1 = i0 + repeatH*numComponents;
+                for(s32 c=1; c<repeatH; ++c){
+                    s32 value = C[i0] * ratioH * (repeatH-c) + C[i1] * ratioH * (c);
+                    C[i0+c*numComponents] = fixedPointRound<s16>(value, FIXED_POINT_SHIFT);
+                }
+            }
+            if(y<endY){
+                for(s32 x=0; x<context.frame_.width_; ++x){
+                    s32 i0 = row + x*numComponents;
+                    s32 i1 = i0 + repeatV * step;
+                    for(s32 c=1; c<repeatV; ++c){
+                        s32 value = C[i0] * ratioV * (repeatV-c) + C[i1] * ratioV * (c);
+                        C[i0+c*step] = fixedPointRound<s16>(value, FIXED_POINT_SHIFT);
+                    }
+                }
+            }
         }
     }
 }

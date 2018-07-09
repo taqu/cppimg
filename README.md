@@ -9,10 +9,10 @@ A library of loading/saveing some image formats for C++
 ||Input|Output|Bits/Pixel|Note|
 |:---|:---|:---|:---|:---|
 |PPM|no|yes|8/24/32||
-|BMP|yes|yes|24/32|Support only Uncompressed. Not support alpha, color spaces.|
+|BMP|yes|yes|24/32|Support only uncompressed. Not support alpha, color spaces.|
 |TGA|yes|yes|24/32|Support both uncompressed and compressed.|
 |PNG|yes|no|8/24/32||
-|JPG|yes|out|24|Now under implementation.|
+|JPG|yes|no|8/24|Now under implementation.|
 
 # License
 This is free and unencumbered software released into the public domain.
