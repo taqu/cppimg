@@ -8,8 +8,8 @@ project(${ProjectName})
 set(SOURCES "main.cpp;test_png.cpp;test_tga.cpp;test_bmp.cpp;test_jpg.cpp;test_openexr.cpp;../cppimg.h;../szlib.h")
 
 include_directories(AFTER ${CMAKE_CURRENT_SOURCE_DIR})
-#include_directories(AFTER ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/zlib)
-#link_directories("zlib")
+#include_directories(AFTER ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../zlib)
+#link_directories("../zlib")
 
 source_group("include" FILES ${HEADERS})
 source_group("src" FILES ${SOURCES})

@@ -1,7 +1,5 @@
 #include <stdio.h>
-
 #include "catch.hpp"
-
 #include "../cppimg.h"
 
 namespace
