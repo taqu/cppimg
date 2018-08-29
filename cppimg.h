@@ -299,7 +299,7 @@ namespace cppimg
         Channel_Num,
     };
 
-    extern Char* ChannelNames[Channel_Num];
+    extern const Char* ChannelNames[Channel_Num];
 
     inline s32 getBytesPerPixel(ColorType colorType)
     {
@@ -316,7 +316,8 @@ namespace cppimg
     }
 
     s32 getBytesPerPixel(s32 channels, const s32* types);
-    s32 getSize(s32 type);
+    s32 getSize(Type type);
+    s32 getNumChannels(ColorType type);
 
     struct F32ToF16
     {
@@ -1476,7 +1477,7 @@ namespace cppimg
 
             s32 getSize(s32 channel) const
             {
-                return cppimg::getSize(types_[channel]);
+                return cppimg::getSize(STATIC_CAST(Type, types_[channel]));
             }
 
             s32 width_;
@@ -1495,11 +1496,25 @@ namespace cppimg
         */
         static bool read(Information& information, void* image, Stream& stream);
 
+        /**
+        @brief
+        @return Success:true, Fail:false
+        @param stream
+        @param width
+        @param height
+        @param colorType
+        @param pixelType
+        @param image
+        */
+        static bool write(Stream& stream, s32 width, s32 height, ColorType colorType, Type pixelType, const void* image);
+
     private:
         static const u32 MAGIC = 0x01312F76U;
         static const s32 MinStringBufferSize = 16;
         static const s32 MaxStringSize = 256;
-        static const s32 MaxChannels = 16;
+        static const s32 MaxInChannels = 8;
+        static const s32 MaxOutChannels = 4;
+        static const s32 LinesPerBlock = 16;
 
         enum Compression
         {
@@ -1619,6 +1634,12 @@ namespace cppimg
             {
                 return Flag_MultiPart == (version_&Flag_MultiPart);
             }
+
+            static Version create(
+                bool tile,
+                bool longName,
+                bool deepData,
+                bool multiPart);
 
             u32 version_;
         };
@@ -1740,36 +1761,86 @@ namespace cppimg
             f32 z_;
         };
 
-        static AttributeName findAttributeName(const Char* str);
-        static AttributeType findAttributeType(const Char* str);
-        static s32 read(Char str[MaxStringSize], Stream& stream);
-        static s32 readString(Char str[MaxStringSize], Stream& stream);
-
         class Buffer
         {
         public:
-            Buffer(s32 size)
-                :size_(size)
+            Buffer();
+            explicit Buffer(s64 capacity);
+            ~Buffer();
+
+            bool reserve(s64 capacity);
+            bool expand(s64 newCapacity);
+
+            s64 capacity() const
             {
-                buffer_ = reinterpret_cast<u8*>(CPPIMG_MALLOC(size_));
+                return capacity_;
             }
 
-            ~Buffer()
+            u8 operator[](s64 index) const
             {
-                CPPIMG_FREE(buffer_);
+                CPPIMG_ASSERT(0<=index && index<capacity_);
+                return buffer_[index];
             }
 
-            void resize(s32 size)
+            u8& operator[](s64 index)
             {
-                if(size_<size){
-                    CPPIMG_FREE(buffer_);
-                    size_ = size;
-                    buffer_ = reinterpret_cast<u8*>(CPPIMG_MALLOC(size_));
-                }
+                CPPIMG_ASSERT(0<=index && index<capacity_);
+                return buffer_[index];
             }
 
-            s32 size_;
+            const u8* begin() const
+            {
+                return buffer_;
+            }
+
+            u8* begin()
+            {
+                return buffer_;
+            }
+        private:
+            s64 capacity_;
             u8* buffer_;
+        };
+
+        class StreamBuffer
+        {
+        public:
+            StreamBuffer();
+            explicit StreamBuffer(s64 increments);
+            StreamBuffer(s64 increments, s64 capacity);
+            ~StreamBuffer();
+
+            s64 size() const
+            {
+                return size_;
+            }
+
+            s64 capacity() const
+            {
+                return buffer_.capacity();
+            }
+
+            void setIncrements(s64 increments)
+            {
+                CPPIMG_ASSERT(0<increments);
+                increments_ = increments;
+            }
+
+            bool reserve(s64 capacity)
+            {
+                return buffer_.reserve(capacity);
+            }
+
+            const u8* begin() const
+            {
+                return buffer_.begin();
+            }
+
+            bool write(s64 size, const void* data);
+        private:
+            s64 size_;
+            s64 increments_;
+            Buffer buffer_;
         };
 
         struct Header
@@ -1777,13 +1848,13 @@ namespace cppimg
             void initialize();
 
             bool getColorType(ColorType& colorType) const;
-            void getTypes(s32 types[MaxChannels]) const;
+            void getTypes(s32 types[MaxInChannels]) const;
             const Channel* findChannel(const Char* name) const;
             void sortChannels();
-            void getChannelAssign(s32 assign[MaxChannels]) const;
+            void getChannelAssign(s32 assign[MaxInChannels]) const;
 
             s32 numChannels_;
-            Channel channels_[MaxChannels];
+            Channel channels_[MaxInChannels];
             u8 compression_;
             Box2i dataWindow_;
             Box2i displayWindow_;
@@ -1840,11 +1911,8 @@ namespace cppimg
             bool readScanlines_RLE_COMPRESSION(Stream& stream);
             bool readScanlines_ZIP_COMPRESSION(Stream& stream);
 
-            void getChannelInformation(s32 sizes[MaxChannels], s32 offsets[MaxChannels]) const;
-            void preprocess(s32 size, u8* dst, u8* src);
-            void postprocess(s32 size, u8* dst, u8* src);
+            void getChannelInformation(s32 sizes[MaxInChannels], s32 offsets[MaxInChannels]) const;
             bool uncompressRLE(Stream& stream, s32 dstSize, u8* dst, u8* tmp, s32 srcSize);
-            bool uncompressZlib(szlib::szContext& context, s32 dstSize, u8* dst, u8* tmp, s32 srcSize, const u8* src);
 
             Version version_;
             Header header_;
@@ -1853,6 +1921,67 @@ namespace cppimg
             Information* information_;
             void* image_;
         };
+
+        class WriteContext
+        {
+        public:
+            WriteContext();
+            ~WriteContext();
+
+            s64 size() const
+            {
+                return streamBuffer_.size();
+            }
+
+            s64 capacity() const
+            {
+                return streamBuffer_.capacity();
+            }
+
+            void setIncrements(s64 increments)
+            {
+                streamBuffer_.setIncrements(increments);
+            }
+
+            bool reserve(s64 capacity)
+            {
+                return streamBuffer_.reserve(capacity);
+            }
+
+            const u8* begin() const
+            {
+                return streamBuffer_.begin();
+            }
+
+            bool write(s64 size, const void* data)
+            {
+                return streamBuffer_.write(size, data);
+            }
+
+            s32 numScanlines_;
+            u64* offsetTable_;
+            StreamBuffer streamBuffer_;
+        };
+
+        static AttributeName findAttributeName(const Char* str);
+        static AttributeType findAttributeType(const Char* str);
+        static s32 read(Char str[MaxStringSize], Stream& stream);
+        static s32 readString(Char str[MaxStringSize], Stream& stream);
+        static s32 writeAttribute(Stream& stream, AttributeName name, AttributeType type, s32 size, const void* data);
+        static s32 writeChannels(Stream& stream, ColorType colorType, Type pixelType);
+        static s32 writeChannels(Stream& stream, s32 size, const Char** names, Type pixelType, u8 linear, s32 xSampling, s32 ySampling);
+        static s32 writeNull(Stream& stream);
+
+        static void getChannelInformation(s32 offsets[MaxOutChannels], ColorType colorType, Type pixelType);
+
+        static void preprocess(s32 size, u8* dst, const u8* src);
+        static void postprocess(s32 size, u8* dst, u8* src);
+
+        static s32 compressZlib(szlib::szContext& context, Buffer& dst, Buffer& tmp, s32 srcSize, const u8* src);
+        static s32 uncompressZlib(szlib::szContext& context, Buffer& dst, Buffer& tmp, s32 srcSize, const u8* src);
+
+        static bool writeScanlines_NO_COMPRESSION(WriteContext& context, u64 offset, s32 width, s32 height, ColorType colorType, Type pixelType, const void* data);
+        static bool writeScanlines_ZIP_COMPRESSION(WriteContext& context, u64 offset, s32 width, s32 height, ColorType colorType, Type pixelType, s32 linesPerBlock, const void* data);
     };
 #endif
 
@@ -1861,7 +1990,17 @@ namespace cppimg
 
 #ifdef CPPIMG_IMPLEMENTATION
 
+#ifdef _MSC_VER
+#define ALIGNED(N) __declspec(align(N))
+#else
+#define ALIGNED(N) __attribute__((aligned(N)))
+#endif
+
 //Enable the use of F16C intrinsic functions
+#if !defined(_MSC_VER)
+#define CPPIMG_DISABLE_F16C
+#endif
+
 #if !defined(CPPIMG_DISABLE_F16C)
 #include <immintrin.h>
 #include <emmintrin.h>
@@ -1929,7 +2068,7 @@ namespace cppimg
         }
         return ret;
 #else
-        __declspec(align(16)) u16 result[8];
+        ALIGNED(16) u16 result[8];
         _mm_store_si128((__m128i*)result, _mm_cvtps_ph(_mm_set1_ps(f), 0)); //round to nearest
         return result[0];
 #endif
@@ -1938,9 +2077,9 @@ namespace cppimg
     f32 toFloat32(u16 h)
     {
 #if defined(CPPIMG_DISABLE_F16C)
-        u32 sign = (s & 0x8000U) << 16;
-        u32 exponent = ((s & 0x7C00U) >> 10);
-        u32 fraction = (s & 0x03FFU);
+        u32 sign = (h & 0x8000U) << 16;
+        u32 exponent = ((h & 0x7C00U) >> 10);
+        u32 fraction = (h & 0x03FFU);
 
         if(exponent == 0){
             if(fraction != 0){
@@ -1965,13 +2104,13 @@ namespace cppimg
 
         return t.f32_;
 #else
-        __declspec(align(16)) f32 result[4];
+        ALIGNED(16) f32 result[4];
         _mm_store_ps(result, _mm_cvtph_ps(_mm_set1_epi16(*(s16*)&h)));
         return result[0];
 #endif
     }
 
-    Char* ChannelNames[Channel_Num]
+    const Char* ChannelNames[Channel_Num]
     {
         "R",
         "G",
@@ -1985,12 +2124,12 @@ namespace cppimg
         CPPIMG_ASSERT(CPPIMG_NULL != types);
         s32 size = 0;
         for(s32 i=0; i<channels; ++i){
-            size += getSize(types[i]);
+            size += getSize(STATIC_CAST(Type, types[i]));
         }
         return size;
     }
 
-    s32 getSize(s32 type)
+    s32 getSize(Type type)
     {
         switch(type){
         case Type_UINT:
@@ -2000,6 +2139,21 @@ namespace cppimg
         case Type_FLOAT:
         default:
             return sizeof(f32);
+        }
+    }
+
+    s32 getNumChannels(ColorType type)
+    {
+        switch(type){
+        case ColorType_GRAY:
+            return 1;
+        case ColorType_RGB:
+            return 3;
+        case ColorType_RGBA:
+            return 4;
+        default:
+            CPPIMG_ASSERT(false);
+            return 0;
         }
     }
 
@@ -2014,7 +2168,7 @@ namespace cppimg
 
         s32 sizes[MaxChannels];
         for(s32 i=0; i<channels; ++i){
-            sizes[i] = getSize(types[i]);
+            sizes[i] = getSize(STATIC_CAST(Type, types[i]));
         }
         s32 srcBytesPerPixel = getBytesPerPixel(channels, types);
 
@@ -3244,9 +3398,9 @@ namespace
     //--- ChunkIDAT
     //----------------------------------------------------
     PNG::ChunkIDAT::ChunkIDAT(u32 totalSrcSize, u32 width, u32 height, s32 color, s32 alpha)
-        :totalSrcSize_(totalSrcSize)
+        :src_(CPPIMG_NULL)
+        ,totalSrcSize_(totalSrcSize)
         ,srcSize_(0)
-        ,src_(CPPIMG_NULL)
         ,totalSize_(width*height*(color+alpha))
         ,totalCount_(0)
         ,color_(color)
@@ -3303,7 +3457,7 @@ namespace
         u32 scanlineSize = width_*(color_+alpha_);
         u8* scanline = reinterpret_cast<u8*>(image);
         u32 scanlineOffset = 0;
-        s32 filterFlag;
+        s32 filterFlag = FilterType_None;
         u8 buffer[BufferSize];
         s32 result;
         do{
@@ -4541,6 +4695,29 @@ namespace
     //--- OpenEXR
     //---
     //----------------------------------------------------
+    OpenEXR::Version OpenEXR::Version::create(
+        bool tile,
+        bool longName,
+        bool deepData,
+        bool multiPart)
+    {
+        Version version;
+        version.version_ = 0x02U;
+        if(tile){
+            version.version_ |= Flag_TileFormat;
+        }
+        if(longName){
+            version.version_ |= Flag_LongName;
+        }
+        if(deepData){
+            version.version_ |= Flag_DeepData;
+        }
+        if(multiPart){
+            version.version_ |= Flag_MultiPart;
+        }
+        return version;
+    }
+
     OpenEXR::Preview::Preview()
         :width_(0)
         ,height_(0)
@@ -4609,9 +4786,9 @@ namespace
         return true;
     }
 
-    void OpenEXR::Header::getTypes(s32 types[MaxChannels]) const
+    void OpenEXR::Header::getTypes(s32 types[MaxInChannels]) const
     {
-        CPPIMG_ASSERT(numChannels_<=MaxChannels);
+        CPPIMG_ASSERT(numChannels_<=MaxInChannels);
         for(s32 i=0; i<numChannels_; ++i){
             types[i] = channels_[i].pixelType_;
         }
@@ -4643,7 +4820,7 @@ namespace
         }
     }
 
-    void OpenEXR::Header::getChannelAssign(s32 assign[MaxChannels]) const
+    void OpenEXR::Header::getChannelAssign(s32 assign[MaxInChannels]) const
     {
         for(s32 i=0; i<numChannels_; ++i){
             if(0 == strcmp(channels_[i].name_, ChannelNames[Channel_R])){
@@ -4658,6 +4835,90 @@ namespace
                 assign[i] = 0;
             }
         }
+    }
+
+    //----------------------------------------------------
+    OpenEXR::Buffer::Buffer()
+        :capacity_(0)
+        ,buffer_(CPPIMG_NULL)
+    {}
+
+    OpenEXR::Buffer::Buffer(s64 capacity)
+        :capacity_(capacity)
+    {
+        buffer_ = reinterpret_cast<u8*>(CPPIMG_MALLOC(capacity_));
+    }
+
+    OpenEXR::Buffer::~Buffer()
+    {
+        CPPIMG_FREE(buffer_);
+    }
+
+    bool OpenEXR::Buffer::reserve(s64 capacity)
+    {
+        if(capacity<=capacity_){
+            return true;
+        }
+        CPPIMG_FREE(buffer_);
+        capacity_ = capacity;
+        buffer_ = reinterpret_cast<u8*>(CPPIMG_MALLOC(capacity_));
+        return CPPIMG_NULL != buffer_;
+    }
+
+    bool OpenEXR::Buffer::expand(s64 newCapacity)
+    {
+        CPPIMG_ASSERT(0<newCapacity);
+        CPPIMG_ASSERT(capacity_<=newCapacity);
+        newCapacity = (newCapacity+7) & ~7;
+        u8* buffer = REINTERPRET_CAST(u8*, CPPIMG_MALLOC(newCapacity));
+        if(CPPIMG_NULL == buffer){
+            return false;
+        }
+        memcpy(buffer, buffer_, newCapacity);
+        CPPIMG_FREE(buffer_);
+        capacity_ = newCapacity;
+        buffer_ = buffer;
+        return true;
+    }
+
+    //----------------------------------------------------
+    OpenEXR::StreamBuffer::StreamBuffer()
+        :size_(0)
+        ,increments_(1024)
+    {}
+
+    OpenEXR::StreamBuffer::StreamBuffer(s64 increments)
+        :size_(0)
+        ,increments_(increments)
+    {}
+
+    OpenEXR::StreamBuffer::StreamBuffer(s64 increments, s64 capacity)
+        :size_(0)
+        ,increments_(increments)
+        ,buffer_(capacity)
+    {}
+
+    OpenEXR::StreamBuffer::~StreamBuffer()
+    {
+    }
+
+    bool OpenEXR::StreamBuffer::write(s64 size, const void* data)
+    {
+        CPPIMG_ASSERT(0<=size);
+        CPPIMG_ASSERT(CPPIMG_NULL != data);
+        CPPIMG_ASSERT(0<increments_);
+        s64 capacity = size_+size;
+        if(buffer_.capacity()<capacity){
+            while(capacity<buffer_.capacity()){
+                capacity += increments_;
+            }
+            if(!buffer_.expand(capacity)){
+                return false;
+            }
+        }
+        memcpy(buffer_.begin()+size_, data, size);
+        size_ += size;
+        return true;
     }
 
     //----------------------------------------------------
@@ -4736,24 +4997,23 @@ namespace
             if(0 == (flags & (0x01U<<AttrName_Tiles))){
                 switch(header_.compression_){
                 case NO_COMPRESSION:
+                case RLE_COMPRESSION:
+                case ZIPS_COMPRESSION:
                     header_.chunkCount_ = (header_.dataWindow_.yMax_ - header_.dataWindow_.yMin_ + 1);
                     break;
-                case RLE_COMPRESSION:
-                    break;
-                case ZIPS_COMPRESSION:
-                    break;
                 case ZIP_COMPRESSION:
+                {
+                    s32 lines = (header_.dataWindow_.yMax_ - header_.dataWindow_.yMin_ + 1);
+                    header_.chunkCount_ = (lines + (LinesPerBlock-1))/LinesPerBlock;
+                }
                     break;
                 case PIZ_COMPRESSION:
-                    break;
                 case PXR24_COMPRESSION:
-                    break;
                 case B44_COMPRESSION:
-                    break;
                 case B44A_COMPRESSION:
-                    break;
+                    header_.chunkCount_ = 0;
+                    return false;
                 }
-                header_.chunkCount_ = (header_.dataWindow_.yMax_ - header_.dataWindow_.yMin_ + 1);
             }else{
                 header_.chunkCount_ = header_.tiles_.xSize_ * header_.tiles_.ySize_;
             }
@@ -4951,22 +5211,21 @@ namespace
     {
         s32 count = 0;
         s32 size = 0;
+        Channel tmp;
         for(;;){
-            Channel& channel = header_.channels_[count];
-            if(!readChannel(channel, stream)){
+            Channel* channel = (count<MaxInChannels)? &header_.channels_[count] : &tmp;
+            if(!readChannel(*channel, stream)){
                 return false;
             }
 
-            if(channel.name_[0] == CPPIMG_NULLCHAR){
+            if(channel->name_[0] == CPPIMG_NULLCHAR){
                 size += 1;
                 break;
             }
-            size += static_cast<s32>( sizeof(s32)*4 + sizeof(Char)*(strlen(channel.name_)+1) );
-            if(MaxChannels<=(++count)){
-                return false;
-            }
+            size += static_cast<s32>( sizeof(s32)*4 + sizeof(Char)*(strlen(channel->name_)+1) );
+            ++count;
         }
-        header_.numChannels_ = count;
+        header_.numChannels_ = minimum(count, MaxInChannels);
         header_.sortChannels();
         return size == valueSize;
     }
@@ -4995,7 +5254,6 @@ namespace
             result = readScanlines_ZIP_COMPRESSION(stream);
             break;
         case PIZ_COMPRESSION:
-            break;
         case PXR24_COMPRESSION:
         case B44_COMPRESSION:
         case B44A_COMPRESSION:
@@ -5009,8 +5267,8 @@ namespace
     {
         s32 bytesPerPixel = information_->getBytesPerPixel();
         s32 lineSize = information_->width_ * bytesPerPixel;
-        s32 sizes[MaxChannels];
-        s32 offsets[MaxChannels];
+        s32 sizes[MaxInChannels];
+        s32 offsets[MaxInChannels];
         getChannelInformation(sizes, offsets);
 
         s32 y=0;
@@ -5043,12 +5301,12 @@ namespace
     {
         s32 bytesPerPixel = information_->getBytesPerPixel();
         s32 lineSize = information_->width_ * bytesPerPixel;
-        s32 sizes[MaxChannels];
-        s32 offsets[MaxChannels];
+        s32 sizes[MaxInChannels];
+        s32 offsets[MaxInChannels];
         getChannelInformation(sizes, offsets);
 
         Buffer dst(lineSize*2);
-        u8* tmp = dst.buffer_ + lineSize;
+        u8* tmp = &dst[0] + lineSize;
 
         s32 y=0;
         s32 dataSize=0;
@@ -5060,11 +5318,11 @@ namespace
             if(stream.read(sizeof(s32), &dataSize)<=0){
                 return false;
             }
-            if(!uncompressRLE(stream, lineSize, dst.buffer_, tmp, dataSize)){
+            if(!uncompressRLE(stream, lineSize, &dst[0], tmp, dataSize)){
                 return false;
             }
 
-            const u8* src = dst.buffer_;
+            const u8* src = &dst[0];
             for(s32 j=0; j<information_->numChannels_; ++j){
                 u8* pixel = reinterpret_cast<u8*>(image_) + y*lineSize + offsets[j];
                 for(s32 k=0; k<information_->width_; ++k){
@@ -5083,70 +5341,72 @@ namespace
         if(szlib::SZ_OK != szlib::createInflate(&context)){
             return false;
         }
-        s32 linesPerBlock = (ZIPS_COMPRESSION == header_.compression_)? 1 : 16;
-        s32 linesPerLastBlock = (ZIPS_COMPRESSION == header_.compression_)? 0 : (header_.chunkCount_ & 15);
-        s32 numBlocks = header_.chunkCount_ / linesPerBlock;
-        s32 lastLine = numBlocks * linesPerBlock;
-        if(0<linesPerLastBlock){
-            ++numBlocks;
-        }
+        s32 numBlocks = header_.chunkCount_;
+        s32 lines = (header_.dataWindow_.yMax_ - header_.dataWindow_.yMin_ + 1);
+        s32 linesPerBlock = (ZIP_COMPRESSION == header_.compression_)? LinesPerBlock : 1;
         s32 bytesPerPixel = information_->getBytesPerPixel();
         s32 lineSize = information_->width_ * bytesPerPixel;
         s32 blockSize = lineSize * linesPerBlock;
-        s32 sizes[MaxChannels];
-        s32 offsets[MaxChannels];
+        s32 sizes[MaxInChannels];
+        s32 offsets[MaxInChannels];
         getChannelInformation(sizes, offsets);
 
         Buffer src(blockSize);
         Buffer dst(blockSize*2);
-        u8* tmp = dst.buffer_ + blockSize;
+        Buffer tmp(blockSize*2);
 
+        bool result = true;
         s32 y=0;
         s32 dataSize=0;
-        for(s32 i=0; i<numBlocks; ++i){
+        for(s32 i=0, next=0; i<numBlocks; ++i){
+            s32 prev = next;
+            next += linesPerBlock;
             u64 offset = offsetTable_[i];
             stream.seek(offset, SEEK_SET);
             if(stream.read(sizeof(s32), &y)<=0){
-                szlib::termInflate(&context);
-                return false;
+                result = false;
+                break;
             }
             if(stream.read(sizeof(s32), &dataSize)<=0){
-                szlib::termInflate(&context);
-                return false;
+                result = false;
+                break;
             }
-            src.resize(dataSize);
-            if(stream.read(dataSize, src.buffer_)<=0){
-                szlib::termInflate(&context);
-                return false;
+            src.reserve(dataSize);
+            if(stream.read(dataSize, &src[0])<=0){
+                result = false;
+                break;
             }
-            if(!uncompressZlib(context, blockSize, dst.buffer_, tmp, dataSize, src.buffer_)){
-                szlib::termInflate(&context);
-                return false;
+            if(!uncompressZlib(context, dst, tmp, dataSize, &src[0])){
+                result = false;
+                break;
             }
 
-            s32 lines = (lastLine == y)? linesPerLastBlock : linesPerBlock;
-            const u8* s = dst.buffer_;
-            for(s32 j=0; j<lines; ++j){
-                u8* d = reinterpret_cast<u8*>(image_) + (y+j)*lineSize;
+            s32 currentLines = (next<lines)? linesPerBlock : lines-prev;
+            const u8* s = &dst[0];
+            u8* line = reinterpret_cast<u8*>(image_) + y*lineSize;
+            for(s32 j=0; j<currentLines; ++j){
                 for(s32 k=0; k<information_->numChannels_; ++k){
-                    u8* pixel = d + offsets[k];
+                    u8* pixel = line + offsets[k];
                     for(s32 l=0; l<information_->width_; ++l){
-                        memcpy(pixel, s, sizes[k]);
+                        for(s32 m=0; m<sizes[k]; ++m){
+                            pixel[m] = s[m];
+                        }
                         s += sizes[k];
                         pixel += bytesPerPixel;
                     }
                 }
+                line += lineSize;
             }
-            CPPIMG_ASSERT((lineSize*lines) == static_cast<s32>(s-dst.buffer_));
+            CPPIMG_ASSERT((lineSize*currentLines) == static_cast<s32>(s-&dst[0]));
         }
         szlib::termInflate(&context);
-        return true;
+        return result;
     }
 
-    void OpenEXR::Context::getChannelInformation(s32 sizes[MaxChannels], s32 offsets[MaxChannels]) const
+    void OpenEXR::Context::getChannelInformation(s32 sizes[MaxInChannels], s32 offsets[MaxInChannels]) const
     {
-        s32 tmp_offsets[MaxChannels];
-        s32 channelAssign[MaxChannels];
+        s32 tmp_offsets[MaxInChannels];
+        s32 channelAssign[MaxInChannels];
         header_.getChannelAssign(channelAssign);
         sizes[0] = information_->getSize(0);
         tmp_offsets[0] = 0;
@@ -5156,56 +5416,6 @@ namespace
         }
         for(s32 i=0; i<information_->numChannels_; ++i){
             offsets[i] = tmp_offsets[channelAssign[i]];
-        }
-    }
-
-    void OpenEXR::Context::preprocess(s32 size, u8* dst, u8* src)
-    {
-        const u8* s = src;
-        const u8* end = s + size;
-        u8* t0 = dst;
-        u8* t1 = dst + ((size+1)>>1);
-        for(;;){
-            if(end<=s){
-                break;
-            }
-            *t0 = *s;
-            ++t0; ++s;
-            if(end<=s){
-                break;
-            }
-            *t1 = *s;
-            ++t1; ++s;
-        }
-
-        s32 p = dst[0];
-        for(u8* t = dst+1; t<(dst+size); ++t){
-            s32 d = static_cast<s32>(t[0]) - p + (128+256);
-            p = t[0];
-            t[0] = static_cast<u8>(d);
-        }
-    }
-
-    void OpenEXR::Context::postprocess(s32 size, u8* dst, u8* src)
-    {
-        for(u8* t = src+1; t<(src+size); ++t){
-            t[0] = static_cast<u8>(static_cast<s32>(t[-1]) + static_cast<s32>(t[0]) - 128);
-        }
-        const u8* t0 = src;
-        const u8* t1 = src + ((size+1)>>1);
-        u8* d = dst;
-        u8* end = d + size;
-        for(;;){
-            if(end<=d){
-                break;
-            }
-            *d = *t0;
-            ++d; ++t0;
-            if(end<=d){
-                break;
-            }
-            *d = *t1;
-            ++d; ++t1;
         }
     }
 
@@ -5249,40 +5459,16 @@ namespace
         return true;
     }
 
-    bool OpenEXR::Context::uncompressZlib(szlib::szContext& context, s32 dstSize, u8* dst, u8* tmp, s32 srcSize, const u8* src)
+    //----------------------------------------------------
+    OpenEXR::WriteContext::WriteContext()
+        :numScanlines_(0)
+        ,offsetTable_(CPPIMG_NULL)
     {
-        szlib::resetInflate(&context, srcSize, src);
-        static const s32 ChunkSize = 512;
-        u8 chunk[ChunkSize];
+    }
 
-        s32 total = 0;
-        for(;;){
-            context.availOut_ = ChunkSize;
-            context.nextOut_ = chunk;
-            s32 ret = szlib::inflate(&context);
-            switch(ret)
-            {
-            case szlib::SZ_ERROR_MEMORY:
-            case szlib::SZ_ERROR_FORMAT:
-                break;
-            default:
-                s32 current = total;
-                total += context.thisTimeOut_;
-                if(dstSize<total){
-                    return false;
-                }
-                memcpy(tmp+current, chunk, context.thisTimeOut_);
-                if(szlib::SZ_END!=ret){
-                    continue;
-                }
-                break;
-            };
-            break;
-        }
-        dstSize = total;
-
-        postprocess(dstSize, dst, tmp);
-        return true;
+    OpenEXR::WriteContext::~WriteContext()
+    {
+        CPPIMG_FREE(offsetTable_);
     }
 
     //----------------------------------------------------
@@ -5397,6 +5583,69 @@ namespace
         return -1;
     }
 
+    s32 OpenEXR::writeAttribute(Stream& stream, AttributeName name, AttributeType type, s32 size, const void* data)
+    {
+        if(stream.write(strlen(AttributeNames[name])+1, AttributeNames[name])<=0){
+            return 0;
+        }
+        if(stream.write(strlen(TypeNames[type])+1, TypeNames[type])<=0){
+            return 0;
+        }
+        if(stream.write(sizeof(s32), &size)<=0){
+            return 0;
+        }
+        return stream.write(size, data);
+    }
+
+    s32 OpenEXR::writeChannels(Stream& stream, ColorType colorType, Type pixelType)
+    {
+        static const Char* Names[5] = {"A", "B", "G", "R", "Y"};
+        switch(colorType){
+        case ColorType_GRAY:
+            return writeChannels(stream, 1, &Names[4], pixelType, 0, 1, 1);
+        case ColorType_RGB:
+            return writeChannels(stream, 3, &Names[1], pixelType, 0, 1, 1);
+        case ColorType_RGBA:
+            return writeChannels(stream, 4, &Names[0], pixelType, 0, 1, 1);
+        default:
+            CPPIMG_ASSERT(false);
+            return 0;
+        }
+    }
+
+    s32 OpenEXR::writeChannels(Stream& stream, s32 size, const Char** names, Type pixelType, u8 linear, s32 xSampling, s32 ySampling)
+    {
+        CPPIMG_ASSERT(CPPIMG_NULL != names);
+        if(stream.write(strlen(AttributeNames[AttrName_Channels])+1, AttributeNames[AttrName_Channels])<=0){
+            return 0;
+        }
+        if(stream.write(strlen(TypeNames[AttrType_Chlist])+1, TypeNames[AttrType_Chlist])<=0){
+            return 0;
+        }
+
+        static const s32 SizePerChannel = 18;
+        s32 total = SizePerChannel*size + 1;
+        if(stream.write(sizeof(s32), &total)<=0){
+            return 0;
+        }
+        for(s32 i=0; i<size; ++i){
+            if(stream.write(strlen(names[i])+1, names[i])<=0){
+                return 0;
+            }
+            s32 channel[4] = {pixelType, linear, xSampling, ySampling};
+            if(stream.write(4*sizeof(s32), channel)<=0){
+                return 0;
+            }
+        }
+        return writeNull(stream);
+    }
+
+    s32 OpenEXR::writeNull(Stream& stream)
+    {
+        u8 nul = 0x00U;
+        return stream.write(1, &nul);
+    }
+
     bool OpenEXR::read(Information& information, void* image, Stream& stream)
     {
         if(!stream.valid()){
@@ -5445,6 +5694,415 @@ namespace
         }
         seekSet.clear();
         return true;
+    }
+
+    bool OpenEXR::write(Stream& stream, s32 width, s32 height, ColorType colorType, Type pixelType, const void* image)
+    {
+//#define CPPIMG_OPENEXR_USE_NOCOMPRESSION
+        CPPIMG_ASSERT(1<=width);
+        CPPIMG_ASSERT(1<=height);
+        CPPIMG_ASSERT(CPPIMG_NULL != image);
+
+        if(!stream.valid()){
+            return false;
+        }
+
+        SeekSet seekSet(stream.tell(), &stream);
+
+        u64 begin = stream.tell();
+
+        //Write common header
+        u32 magic = MAGIC;
+        if(stream.write(4, &magic)<=0){
+            return false;
+        }
+        Version version = Version::create(false, false, false, false);
+        if(stream.write(4, &version.version_)<=0){
+            return false;
+        }
+
+        //Write channels
+        if(writeChannels(stream, colorType, pixelType)<=0){
+            return false;
+        }
+
+        //Write compression
+#ifdef CPPIMG_OPENEXR_USE_NOCOMPRESSION
+        u8 compression = NO_COMPRESSION;
+#else
+        u8 compression = ZIP_COMPRESSION;
+#endif
+        if(writeAttribute(stream, AttrName_Compression, AttrType_Compression, 1, &compression)<=0){
+            return false;
+        }
+
+        //Write dataWindow
+        Box2i dataWindow = {0, 0, width-1, height-1};
+        if(writeAttribute(stream, AttrName_DataWindow, AttrType_Box2i, sizeof(Box2i), &dataWindow)<=0){
+            return false;
+        }
+
+        //Write displayWindow
+        Box2i displayWindow = {0, 0, width-1, height-1};
+        if(writeAttribute(stream, AttrName_DisplayWindow, AttrType_Box2i, sizeof(Box2i), &displayWindow)<=0){
+            return false;
+        }
+
+        //Write lineOrder
+        u8 lineOrder = INCREASING_Y;
+        if(writeAttribute(stream, AttrName_LineOrder, AttrType_LineOrder, sizeof(u8), &lineOrder)<=0){
+            return false;
+        }
+
+        //Write pixelAspectRatio
+        f32 pixelRatio = 1.0f;
+        if(writeAttribute(stream, AttrName_PixelAspectRatio, AttrType_Float, sizeof(f32), &pixelRatio)<=0){
+            return false;
+        }
+
+        //Write screenWindowCenter
+        Vector2f screenWindowCenter = {0.0f, 0.0f};
+        if(writeAttribute(stream, AttrName_ScreenWindowCenter, AttrType_V2f, sizeof(Vector2f), &screenWindowCenter)<=0){
+            return false;
+        }
+
+        //Write screenWindowWidth
+        f32 screenWindotWidth = 1.0f;
+        if(writeAttribute(stream, AttrName_ScreenWindowWidth, AttrType_Float, sizeof(f32), &screenWindotWidth)<=0){
+            return false;
+        }
+
+        if(writeNull(stream)<=0){
+            return false;
+        }
+        WriteContext writeContext;
+        u64 offset = stream.tell() - begin;
+#ifdef CPPIMG_OPENEXR_USE_NOCOMPRESSION
+        if(!writeScanlines_NO_COMPRESSION(writeContext, offset ,width, height, colorType, pixelType, image)){
+            return false;
+        }
+#else
+        if(!writeScanlines_ZIP_COMPRESSION(writeContext, offset, width, height, colorType, pixelType, LinesPerBlock, image)){
+            return false;
+        }
+#endif
+        if(stream.write(sizeof(u64)*writeContext.numScanlines_, writeContext.offsetTable_)<=0){
+            return false;
+        }
+        if(stream.write(writeContext.size(), writeContext.begin())<=0){
+            return false;
+        }
+        seekSet.clear();
+        return true;
+    }
+
+    void OpenEXR::getChannelInformation(s32 offsets[MaxOutChannels], ColorType colorType, Type pixelType)
+    {
+        s32 bytesPerChannel = getSize(pixelType);
+        switch(colorType){
+        case ColorType_GRAY:
+            offsets[0] = 0;
+            break;
+        case ColorType_RGB:
+            offsets[0] = (bytesPerChannel<<1);
+            offsets[1] = bytesPerChannel;
+            offsets[2] = 0;
+            break;
+        case ColorType_RGBA:
+            offsets[0] = (bytesPerChannel<<1) + bytesPerChannel;
+            offsets[1] = (bytesPerChannel<<1);
+            offsets[2] = bytesPerChannel;
+            offsets[3] = 0;
+            break;
+        default:
+            return;
+        }
+    }
+
+    void OpenEXR::preprocess(s32 size, u8* dst, const u8* src)
+    {
+        const u8* s = src;
+        const u8* end = s + size;
+        u8* t0 = dst;
+        u8* t1 = dst + ((size+1)>>1);
+        for(;;){
+            if(end<=s){
+                break;
+            }
+            *t0 = *s;
+            ++t0; ++s;
+            if(end<=s){
+                break;
+            }
+            *t1 = *s;
+            ++t1; ++s;
+        }
+
+        s32 p = dst[0];
+        for(u8* t = dst+1; t<(dst+size); ++t){
+            s32 d = static_cast<s32>(t[0]) - p + (128+256);
+            p = t[0];
+            t[0] = static_cast<u8>(d);
+        }
+    }
+
+    void OpenEXR::postprocess(s32 size, u8* dst, u8* src)
+    {
+        for(u8* t = src+1; t<(src+size); ++t){
+            t[0] = static_cast<u8>(static_cast<s32>(t[-1]) + static_cast<s32>(t[0]) - 128);
+        }
+        const u8* t0 = src;
+        const u8* t1 = src + ((size+1)>>1);
+        u8* d = dst;
+        u8* end = d + size;
+        for(;;){
+            if(end<=d){
+                break;
+            }
+            *d = *t0;
+            ++d; ++t0;
+            if(end<=d){
+                break;
+            }
+            *d = *t1;
+            ++d; ++t1;
+        }
+    }
+
+    s32 OpenEXR::compressZlib(szlib::szContext& context, Buffer& dst, Buffer& tmp, s32 srcSize, const u8* src)
+    {
+        if(!tmp.reserve(srcSize)){
+            return -1;
+        }
+        preprocess(srcSize, &tmp[0], src);
+        szlib::resetDeflate(&context, srcSize, &tmp[0], szlib::SZ_Level_Fixed);
+        static const s32 ChunkSize = 512;
+        u8 chunk[ChunkSize];
+
+        s32 total = 0;
+        for(;;){
+            context.availOut_ = ChunkSize;
+            context.nextOut_ = chunk;
+            s32 ret = szlib::deflate(&context);
+            switch(ret)
+            {
+            case szlib::SZ_ERROR_MEMORY:
+            case szlib::SZ_ERROR_FORMAT:
+                return -1;
+            default:
+                s32 outCount = total;
+                total += context.thisTimeOut_;
+                if(dst.capacity()<total){
+                    dst.expand(1024);
+                }
+                memcpy(&dst[outCount], chunk, context.thisTimeOut_);
+                if(szlib::SZ_END!=ret){
+                    continue;
+                }
+                break;
+            };
+            break;
+        }
+        return total;
+    }
+
+    s32 OpenEXR::uncompressZlib(szlib::szContext& context, Buffer& dst, Buffer& tmp, s32 srcSize, const u8* src)
+    {
+        szlib::resetInflate(&context, srcSize, src);
+        static const s32 ChunkSize = 512;
+        u8 chunk[ChunkSize];
+
+        s32 total = 0;
+        for(;;){
+            context.availOut_ = ChunkSize;
+            context.nextOut_ = chunk;
+            s32 ret = szlib::inflate(&context);
+            switch(ret)
+            {
+            case szlib::SZ_ERROR_MEMORY:
+            case szlib::SZ_ERROR_FORMAT:
+                return -1;
+            default:
+                s32 current = total;
+                total += context.thisTimeOut_;
+                if(tmp.capacity()<total){
+                    tmp.expand(1024);
+                }
+                memcpy(&tmp[current], chunk, context.thisTimeOut_);
+                if(szlib::SZ_END!=ret){
+                    continue;
+                }
+                break;
+            };
+            break;
+        }
+        if(!dst.reserve(tmp.capacity())){
+            return -1;
+        }
+        postprocess(total, &dst[0], &tmp[0]);
+        return total;
+    }
+
+    bool OpenEXR::writeScanlines_NO_COMPRESSION(WriteContext& context, u64 offset, s32 width, s32 height, ColorType colorType, Type pixelType, const void* data)
+    {
+        s32 numChannels = getNumChannels(colorType);
+        s32 bytesPerChannel = getSize(pixelType);
+        s32 bytesPerPixel = numChannels * bytesPerChannel;
+        s32 bytesPerLine = bytesPerPixel * width;
+        s32 bytesPerChunk = bytesPerLine;
+        s32 offsets[MaxOutChannels];
+        getChannelInformation(offsets, colorType, pixelType);
+
+        context.numScanlines_ = height;
+        context.offsetTable_ = REINTERPRET_CAST(u64*, CPPIMG_MALLOC(sizeof(u64)*context.numScanlines_));
+        offset += sizeof(u64)*context.numScanlines_;
+        for(s32 i=0; i<height; ++i){
+            context.offsetTable_[i] = offset;
+            offset += bytesPerLine + sizeof(s32);
+        }
+        context.streamBuffer_.setIncrements(bytesPerLine);
+        context.streamBuffer_.reserve((STATIC_CAST(s64, bytesPerLine) + sizeof(s32)*2)*height);
+
+        for(s32 i=0; i<height; ++i){
+            if(!context.write(sizeof(s32), &i)){
+                return false;
+            }
+            if(!context.write(sizeof(s32), &bytesPerChunk)){
+                return false;
+            }
+
+            const u8* line = REINTERPRET_CAST(const u8*, data) + i*bytesPerChunk;
+            for(s32 j=0; j<numChannels; ++j){
+                const u8* pixel = line + offsets[j];
+                for(s32 k=0; k<width; ++k){
+                    if(!context.write(bytesPerChannel, pixel)){
+                        return false;
+                    }
+                    pixel += bytesPerPixel;
+                }
+            }
+        }
+        return true;
+    }
+
+    bool OpenEXR::writeScanlines_ZIP_COMPRESSION(WriteContext& context, u64 offset, s32 width, s32 height, ColorType colorType, Type pixelType, s32 linesPerBlock, const void* data)
+    {
+//#define CPPIMG_OPENEXR_DEBUG_ZIP
+        static const s8 ChannelOrder_GRAY[] = {0};
+        static const s8 ChannelOrder_RGB[] = {0, 1, 2};
+        static const s8 ChannelOrder_RGBA[] = {0, 1, 2, 3};
+
+        szlib::szContext zcontext;
+        if(szlib::SZ_OK != szlib::createDeflate(&zcontext)){
+            return false;
+        }
+#ifdef CPPIMG_OPENEXR_DEBUG_ZIP
+        szlib::szContext zuncompress;
+        if(szlib::SZ_OK != szlib::createInflate(&zuncompress)){
+            return false;
+        }
+#endif
+        s32 mask = linesPerBlock-1;
+        s32 numBlocks = (height + mask)/linesPerBlock;
+        s32 numChannels = getNumChannels(colorType);
+        s32 bytesPerChannel = getSize(pixelType);
+        s32 bytesPerPixel = numChannels * bytesPerChannel;
+        s32 bytesPerLine = bytesPerPixel * width;
+        s32 bytesPerChannelLine = bytesPerChannel * width;
+        s32 bytesPerChunk = bytesPerLine * linesPerBlock;
+        const s8* channelOrder = CPPIMG_NULL;
+        switch(colorType){
+        case ColorType_GRAY:
+            channelOrder = ChannelOrder_GRAY;
+            break;
+        case ColorType_RGB:
+            channelOrder = ChannelOrder_RGB;
+            break;
+        case ColorType_RGBA:
+            channelOrder = ChannelOrder_RGBA;
+            break;
+        default:
+            CPPIMG_ASSERT(false);
+            break;
+        }
+
+        context.numScanlines_ = numBlocks;
+        context.offsetTable_ = REINTERPRET_CAST(u64*, CPPIMG_MALLOC(sizeof(u64)*context.numScanlines_));
+        offset += sizeof(u64)*context.numScanlines_;
+        context.streamBuffer_.setIncrements(bytesPerChunk);
+        context.streamBuffer_.reserve((STATIC_CAST(s64, bytesPerChunk) + sizeof(s32)*2)*numBlocks);
+
+        s32 offsets[MaxOutChannels];
+        getChannelInformation(offsets, colorType, pixelType);
+
+        bool result = true;
+        Buffer tmp0(bytesPerChunk);
+        Buffer tmp1(bytesPerChunk);
+        Buffer dst(bytesPerChunk);
+#ifdef CPPIMG_OPENEXR_DEBUG_ZIP
+        Buffer dst2(bytesPerChunk);
+#endif
+        const u8* src = REINTERPRET_CAST(const u8*, data);
+        for(s32 i=0, next=0; i<numBlocks; ++i){
+            s32 prev = next;
+            next += linesPerBlock;
+            s32 size = (next<height)? bytesPerChunk : (height-prev) * bytesPerLine;
+            s32 lines = (next<height)? linesPerBlock : (height-prev);
+
+            const u8* src_line = src;
+            u8* dst_line = &tmp0[0];
+            for(s32 j=0; j<lines; ++j){
+                for(s32 k=0; k<numChannels; ++k){
+                    const u8* src_pixel = src_line + offsets[k];
+                    u8* dst_pixel = dst_line + channelOrder[k] * bytesPerChannelLine;
+                    for(s32 l=0; l<width; ++l){
+                        for(s32 m=0; m<bytesPerChannel; ++m){
+                            dst_pixel[m] = src_pixel[m];
+                        }
+                        dst_pixel += bytesPerChannel;
+                        src_pixel += bytesPerPixel;
+                    }
+                }
+
+                src_line += bytesPerLine;
+                dst_line += bytesPerLine;
+            }
+            CPPIMG_ASSERT(static_cast<s32>(dst_line-&tmp0[0]) == size);
+
+            s32 compressed = compressZlib(zcontext, dst, tmp1, size, &tmp0[0]);
+            if(compressed<0){
+                result = false;
+                break;
+            }
+
+#ifdef CPPIMG_OPENEXR_DEBUG_ZIP
+            s32 uncompressed = uncompressZlib(zuncompress, dst2, tmp1, compressed, &dst[0]);
+            CPPIMG_ASSERT(size == uncompressed);
+            for(s32 j=0; j<size; ++j){
+                CPPIMG_ASSERT(dst2[j] == tmp0[j]);
+            }
+#endif
+            context.offsetTable_[i] = offset;
+            src += size;
+            if(!context.write(sizeof(s32), &prev)){
+                result = false;
+                break;
+            }
+            if(!context.write(sizeof(s32), &compressed)){
+                result = false;
+                break;
+            }
+            if(!context.write(sizeof(u8)*compressed, &dst[0])){
+                result = false;
+                break;
+            }
+            offset += compressed + sizeof(s32)*2;
+        }
+#ifdef CPPIMG_OPENEXR_DEBUG_ZIP
+        szlib::termInflate(&zuncompress);
+#endif
+        szlib::termDeflate(&zcontext);
+        return result;
     }
 }
 #endif

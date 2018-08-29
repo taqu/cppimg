@@ -13,10 +13,19 @@ A library of loading/saveing some image formats for C++
 |TGA|yes|yes|24/32|Support both uncompressed and compressed.|
 |PNG|yes|no|8/24/32||
 |JPG|yes|no|8/24|Support only base line. Not support progressive.|
-|OpenEXR|yes|no|16/32||
+|OpenEXR|yes|yes|16/32|Support only gray, rgb, or rgba image.|
 
-||Supported properties in Open EXR|
-|:--|:--|
+## Supported properties in Open EXR
+|Property|Input|Output|
+|:--|:--|:--|
+|No Compression|yes|no|
+|RLE|yes|no|
+|ZIPS|yes|no|
+|ZIP|yes|yes|
+|PIZ/PXR24/B44/B44A|no|no|
+|Tiled image|no|no|
+|Multi-part|no|no|
+|Deep Data|no|no|
 
 # License
 This is free and unencumbered software released into the public domain.
