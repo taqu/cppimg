@@ -730,36 +730,6 @@ namespace cppimg
 
     //----------------------------------------------------
     //---
-    //--- SStream
-    //---
-    //----------------------------------------------------
-    class SStream
-    {
-    public:
-        SStream();
-        SStream(s64 size, u8* bytes);
-        ~SStream();
-
-        virtual bool valid() const;
-        virtual bool seek(off_t pos, s32 whence);
-        virtual off_t tell();
-        virtual s64 size();
-
-        virtual s32 read(size_t size, void* dst);
-        virtual s32 write(size_t size, const void* dst);
-    private:
-        SStream(const SStream&) = delete;
-        SStream(SStream&&) = delete;
-        SStream& operator=(const SStream&) = delete;
-        SStream& operator=(SStream&&) = delete;
-
-        s64 size_;
-        s64 current_;
-        u8* bytes_;
-    };
-
-    //----------------------------------------------------
-    //---
     //--- BMP
     //---
     //----------------------------------------------------
@@ -2365,88 +2335,6 @@ namespace
             rhs.file_ = CPPIMG_NULL;
         }
         return *this;
-    }
-
-    //----------------------------------------------------
-    //---
-    //--- SStream
-    //---
-    //----------------------------------------------------
-    SStream::SStream()
-        :size_(0)
-        ,current_(0)
-        ,bytes_(CPPIMG_NULL)
-    {}
-
-    SStream::SStream(s64 size, u8* bytes)
-        :size_(size)
-        ,current_(0)
-        ,bytes_(bytes)
-    {
-        CPPIMG_ASSERT(0<=size_);
-    }
-
-    SStream::~SStream()
-    {
-        size_ = 0;
-        current_ = 0;
-        bytes_ = CPPIMG_NULL;
-    }
-
-    bool SStream::valid() const
-    {
-        return CPPIMG_NULL != bytes_;
-    }
-
-    bool SStream::seek(off_t pos, s32 whence)
-    {
-        switch(whence)
-        {
-        case SEEK_SET:
-            current_ = clamp(pos, 0, size_);
-            break;
-        case SEEK_CUR:
-            current_ = clamp(current_+pos, 0, size_);
-            break;
-        case SEEK_END:
-            current_ = clamp(size_+pos, 0, size_);
-            break;
-        default:
-            return false;
-        }
-        return true;
-    }
-
-    off_t SStream::tell()
-    {
-        return current_;
-    }
-
-    s64 SStream::size()
-    {
-        return size_;
-    }
-
-    s32 SStream::read(size_t size, void* dst)
-    {
-        s64 end = clamp(current_+size, 0, size_);
-        u8* d = REINTERPRET_CAST(u8*, dst);
-        s64 count = 0;
-        for(; current_<end; ++count, ++current_){
-            d[count] = bytes_[current_];
-        }
-        return size<=count? 1 : 0;
-    }
-
-    s32 SStream::write(size_t size, const void* dst)
-    {
-        s64 end = clamp(current_+size, 0, size_);
-        const u8* d = REINTERPRET_CAST(const u8*, dst);
-        s64 count = 0;
-        for(; current_<end; ++count, ++current_){
-            bytes_[current_] = d[count];
-        }
-        return size<=count ? 1 : 0;
     }
 
     //----------------------------------------------------
