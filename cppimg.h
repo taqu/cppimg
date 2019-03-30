@@ -1049,6 +1049,7 @@ namespace cppimg
             u32 color_;
             u32 alpha_;
             u32 width_;
+            u32 height_;
         };
 
         struct ChunkIEND : public Chunk
@@ -3432,6 +3433,7 @@ namespace
         ,color_(color)
         ,alpha_(alpha)
         ,width_(width)
+        ,height_(height)
     {
     }
 
@@ -3483,7 +3485,7 @@ namespace
         u32 scanlineSize = width_*(color_+alpha_);
         u8* scanline = reinterpret_cast<u8*>(image);
         u32 scanlineOffset = 0;
-        s32 filterFlag = FilterType_None;
+        s32 filterFlag = -1;
         u8 buffer[BufferSize];
         s32 result;
         do{
@@ -3504,23 +3506,25 @@ namespace
             u8* dst = buffer;
             //Copy inflated data to scanline
             while(0<outSize && totalCount_<totalSize_){
-                if(scanlineOffset<=0){
+                if(scanlineOffset<=0 && filterFlag<0){
                     --outSize;
                     filterFlag = dst[0];
                     ++dst;
+                    CPPIMG_ASSERT(FilterType_None<=filterFlag && filterFlag<=FilterType_Paeth);
                 }
 
-                u32 copySize = ((scanlineOffset+outSize) < scanlineSize)? outSize : scanlineSize-scanlineOffset;
+                u32 copySize = ((scanlineOffset+outSize) <= scanlineSize)? outSize : scanlineSize-scanlineOffset;
                 memcpy(scanline+scanlineOffset, dst, copySize);
                 scanlineOffset += copySize;
 
                 //Scanline have been filled up, apply filter
                 if(scanlineSize<=scanlineOffset){
                     CPPIMG_ASSERT(scanlineSize == scanlineOffset);
+                    CPPIMG_ASSERT(FilterType_None<=filterFlag && filterFlag<=FilterType_Paeth);
                     filter(scanlineSize, filterFlag, scanline, reinterpret_cast<u8*>(image));
                     filterFlag = -1;
                     scanline += scanlineSize;
-                    scanlineOffset = 0;
+                    scanlineOffset -= scanlineSize;
                 }
                 totalCount_ += copySize;
                 outSize -= copySize;
@@ -3630,11 +3634,12 @@ namespace
     {
         CPPIMG_ASSERT(image<=scanline && scanline<(image+totalSize_));
         u32 components = color_+alpha_;
+        CPPIMG_ASSERT(scanlineSize == (width_*components));
+
         switch(filterFlag)
         {
         case FilterType_Sub:
-            for(u32 i=1; i<width_; ++i){
-                u32 p = i*components;
+            for(u32 p=components; p<scanlineSize;){
                 for(u32 j = 0; j<components; ++j, ++p){
                     s32 x = scanline[p] + scanline[p-components];
                     scanline[p] = static_cast<u8>(x&255);
@@ -3644,8 +3649,7 @@ namespace
         case FilterType_Up:
             if(image<scanline){
                 u8* upper = scanline-scanlineSize;
-                for(u32 i=0; i<width_; ++i){
-                    u32 p = i*components;
+                for(u32 p=0; p<scanlineSize;){
                     for(u32 j = 0; j<components; ++j, ++p){
                         s32 x = upper[p] + scanline[p];
                         scanline[p] = static_cast<u8>(x&255);
@@ -3654,45 +3658,38 @@ namespace
             }
             break;
         case FilterType_Avg:
-            if(image<scanline){
-                u8* upper = scanline-scanlineSize;
-                for(u32 i=1; i<width_; ++i){
-                    u32 p = i*components;
-                    for(u32 j = 0; j<components; ++j, ++p){
-                        s32 x = ((scanline[p-components] + upper[p])>>1) + scanline[p];
-                        scanline[p] = static_cast<u8>(x&255);
-                    }
-                }
-            }else{
-                for(u32 i=1; i<width_; ++i){
-                    u32 p = i*components;
-                    for(u32 j = 0; j<components; ++j, ++p){
-                        s32 x = (scanline[p-components]>>1) + scanline[p];
-                        scanline[p] = static_cast<u8>(x&255);
-                    }
+        {
+            u8* upper = scanline-scanlineSize;
+            for(u32 p=0; p<scanlineSize;){
+                for(u32 j = 0; j<components; ++j, ++p){
+                    s32 left = (components<=p)? scanline[p-components] : 0;
+                    s32 up = (image<scanline)? upper[p] : 0;
+                    s32 x = ((left+up)>>1) + scanline[p];
+                    scanline[p] = static_cast<u8>(x&255);
                 }
             }
+        }
             break;
         case FilterType_Paeth:
         {
             u8* upper = scanline-scanlineSize;
-            for(u32 i=0; i<width_; ++i){
-                u32 p = i*components;
+            for(u32 p=0; p<scanlineSize;){
                 for(u32 j = 0; j<components; ++j, ++p){
-                    s32 a = (0<i)? scanline[p-components] : 0;
+                    s32 a = (components<=p)? scanline[p-components] : 0;
                     s32 b = (image<scanline)? upper[p] : 0;
-                    s32 c = (0<i && image<scanline)? upper[p-components] : 0;
+                    s32 c = (components<=p && image<scanline)? upper[p-components] : 0;
+
                     s32 x = a+b-c;
-                    s32 pa = absolute(x-a);
-                    s32 pb = absolute(x-b);
-                    s32 pc = absolute(x-c);
-                    if(pa<=pb && pa<=pc){
+                    s32 xa = absolute(x-a);
+                    s32 xb = absolute(x-b);
+                    s32 xc = absolute(x-c);
+                    if(xa<=xb && xa<=xc){
                         x = a;
                     } else{
-                        x = (pb<=pc)? b : c;
+                        x = (xb<=xc)? b : c;
                     }
-                    x += scanline[p];
-                    scanline[p] = static_cast<u8>(x&255);
+                    //scanline[p] = clamp(x+scanline[p], 0, 255);
+                    scanline[p] = static_cast<u8>((x+scanline[p])&255);
                 }
             }
         }
