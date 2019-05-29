@@ -4,6 +4,21 @@
 # Introduction
 A library of loading/saveing some image formats for C++
 
+# Usage
+To create an implementation, put CPPIMG_IMPLEMENTATION like below.
+
+    #define CPPIMG_IMPLEMENTATION
+    #include "cppimg.h"
+
+## Options
+To disable using Half float convert (F16C instructions), put before "include cppimg.h"
+
+    #define CPPIMG_DISABLE_F16C
+
+To disable using AVX/SSE instructions, put before "include cppimg.h"
+
+    #define CPPIMG_DISABLE_AVX
+
 # Supported Formats
 
 ||Input|Output|Bits/Pixel|Note|

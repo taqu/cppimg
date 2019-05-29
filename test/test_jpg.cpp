@@ -46,17 +46,17 @@ namespace
 
 TEST_CASE("Read JPG" "[JPG]")
 {
-    SECTION("test00.jpg"){
-        test("test00.jpg", "test00.jpg.bmp", "../data/");
-    }
+    //SECTION("test00.jpg"){
+    //    test("test00.jpg", "test00.jpg.bmp", "../data/");
+    //}
 
-    SECTION("test01.jpg"){
-        test("test01.jpg", "test01.jpg.bmp", "../data/");
-    }
+    //SECTION("test01.jpg"){
+    //    test("test01.jpg", "test01.jpg.bmp", "../data/");
+    //}
 
-    SECTION("test02.jpg"){
-        test("test02.jpg", "test02.jpg.bmp", "../data/");
-    }
+    //SECTION("test02.jpg"){
+    //    test("test02.jpg", "test02.jpg.bmp", "../data/");
+    //}
     SECTION("lena.jpg"){
         test("lena.jpg", "lena.jpg.bmp", "../data/");
     }

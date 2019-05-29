@@ -2028,13 +2028,98 @@ namespace cppimg
 #define CPPIMG_DISABLE_F16C
 #endif
 
-#if !defined(CPPIMG_DISABLE_F16C)
+#if !defined(CPPIMG_DISABLE_F16C) && !defined(CPPIMG_DISABLE_AVX)
 #include <immintrin.h>
 #include <emmintrin.h>
 #endif
 
 namespace cppimg
 {
+#ifdef CPPIMG_DEBUG
+    //---------------------------------------------------------
+    //---
+    //--- Time
+    //---
+    //---------------------------------------------------------
+    /// Get performance counter
+    u64 getPerformanceCounter()
+    {
+#if defined(_WIN32)
+        LARGE_INTEGER count;
+        QueryPerformanceCounter(&count);
+        return count.QuadPart;
+#else
+        clock_t t = 0;
+        t = clock();
+        return t;
+#endif
+    }
+
+    /// Get performance count per second
+    u64 getPerformanceFrequency()
+    {
+#if defined(_WIN32)
+        LARGE_INTEGER freq;
+        QueryPerformanceFrequency(&freq);
+        return freq.QuadPart;
+#else
+        return CLOCKS_PER_SEC;
+#endif
+    }
+
+    /// Calculate duration time from performance count
+    f64 calcTime64(u64 prevTime, u64 currentTime)
+    {
+        u64 d = (currentTime>=prevTime)? currentTime - prevTime : (std::numeric_limits<u64>::max)() - prevTime + currentTime;
+        f64 delta = static_cast<f64>(d)/getPerformanceFrequency();
+        return delta;
+    }
+    struct Timer
+    {
+        Timer()
+            :time_(0)
+            ,count_(0)
+            ,totalTime_(0.0f)
+        {}
+
+        void start()
+        {
+            time_ = getPerformanceCounter();
+        }
+
+        void stop()
+        {
+            totalTime_ += calcTime64(time_, getPerformanceCounter());
+            ++count_;
+        }
+
+        f64 getAverage() const
+        {
+            return (0 == count_)? 0.0 : totalTime_/count_;
+        }
+
+        void reset();
+
+        u64 time_;
+        s32 count_;
+        f64 totalTime_;
+    };
+
+    void Timer::reset()
+    {
+        time_ = 0;
+        count_ = 0;
+        totalTime_ = 0.0f;
+    }
+
+#define START_TIMER Timer timer; timer.start()
+#define STOP_TIMER(comment) timer.stop(); printf("%s: %lf sec\n", comment, timer.getAverage())
+
+#else
+#define START_TIMER 
+#define STOP_TIMER(comment) 
+#endif
+
     f32 clamp01(f32 x)
     {
         UnionS32F32 u;
@@ -4366,6 +4451,8 @@ namespace
 
     bool JPEG::decode(Context& context)
     {
+        START_TIMER;
+
         s32 vblocks = blocks(context.frame_.height_);
         s32 hblocks = blocks(context.frame_.width_);
         if(!context.frame_.getMaxSampling()){
@@ -4422,6 +4509,7 @@ namespace
                 }
             }
         }
+        STOP_TIMER("JPEG::decode");
         return true;
     }
 
@@ -4538,13 +4626,20 @@ namespace
         s32 qt = context.frame_.components_[component].quantizationTable_;
         const QuantizationTable& table = context.quantization_[qt];
 
+#if defined(CPPIMG_DISABLE_AVX)
         for(s32 i=0; i<BLOCK_SIZE; ++i){
             context.dct_[i] *= table.factors_[i];
         }
+#else
+        __m128i dct = _mm_loadu_si128(reinterpret_cast<const __m128i*>(context.dct_));
+        __m128i factors = _mm_loadu_si128(reinterpret_cast<const __m128i*>(table.factors_));
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(context.dct_), _mm_mullo_epi16(dct, factors));
+#endif
     }
 
     void JPEG::inverseDCT(Context& context)
     {
+#if defined(CPPIMG_DISABLE_AVX)
         s32 levelShift = context.frame_.precision_<=8? 128 : 2048;
         levelShift <<= FIXED_POINT_SHIFT2;
         for(s32 y=0; y<BLOCK_WIDTH; ++y){
@@ -4564,6 +4659,66 @@ namespace
                 block[x] = static_cast<s16>(fixedPointRound(sum, FIXED_POINT_SHIFT2+2) + levelShift);
             }
         }
+#else
+        s32 levelShift = context.frame_.precision_<=8? 128 : 2048;
+        levelShift <<= FIXED_POINT_SHIFT2;
+
+        __m128i RoundOffset0 = _mm_set1_epi32((1<<FIXED_POINT_SHIFT)-1);
+        __m128i RoundOffset1 = _mm_set1_epi32((1<<(FIXED_POINT_SHIFT2+2))-1);
+        __m128i Zero = _mm_setzero_si128();
+        __m128i LevelShift = _mm_set1_epi32(levelShift);
+
+        __m128i csx[BLOCK_WIDTH];
+        __m128i csy[BLOCK_WIDTH][BLOCK_WIDTH];
+        __m128i tdct[BLOCK_WIDTH];
+        const s16* ttdct = context.dct_;
+        for(s32 i = 0; i < BLOCK_WIDTH; ++i, ttdct+=BLOCK_WIDTH){
+            csx[i] = _mm_loadu_si128(reinterpret_cast<__m128i*>(&context.cosine_[i][0]));
+            tdct[i] = _mm_loadu_si128(reinterpret_cast<const __m128i*>(ttdct));
+            for(s32 j = 0; j < BLOCK_WIDTH; ++j){
+                csy[i][j] = _mm_set1_epi16(context.cosine_[i][j]);
+            }
+        }
+
+        for(s32 y=0; y<BLOCK_WIDTH; ++y){
+            s16* block = context.block_ + y*BLOCK_WIDTH;
+            for(s32 x=0; x<BLOCK_WIDTH; ++x){
+                __m128i sum = _mm_setzero_si128();
+                for(s32 v=0; v<BLOCK_WIDTH; ++v){
+                    const __m128i& dct = tdct[v];
+                    __m128i dct0 = _mm_cvtepi16_epi32(dct);
+                    __m128i dct1 = _mm_cvtepi16_epi32(_mm_srli_si128(dct, 8));
+
+                    const __m128i& tcsy = csy[y][v];
+                    __m128i cl = _mm_mullo_epi16(tcsy, csx[x]); //lower 8 bits of tcsy*csx
+                    __m128i ch = _mm_mulhi_epi16(tcsy, csx[x]); //upper 8 bits of tcsy*csx
+
+                    __m128i c0 = _mm_unpacklo_epi16(cl, ch);
+                    __m128i c1 = _mm_unpackhi_epi16(cl, ch);
+                    //Round fixed point values
+                    c0 = _mm_srai_epi32(_mm_add_epi32(c0, RoundOffset0), FIXED_POINT_SHIFT);
+                    c1 = _mm_srai_epi32(_mm_add_epi32(c1, RoundOffset0), FIXED_POINT_SHIFT);
+
+                    c0 = _mm_mullo_epi32(c0, dct0);
+                    c1 = _mm_mullo_epi32(c1, dct1);
+
+                    sum = _mm_add_epi32(sum, c0);
+                    sum = _mm_add_epi32(sum, c1);
+                }
+
+                sum = _mm_hadd_epi32(sum, sum);
+                sum = _mm_hadd_epi32(sum, sum);
+
+                //Round fixed point values
+                sum = _mm_add_epi32(_mm_srai_epi32(_mm_add_epi32(sum, RoundOffset1), FIXED_POINT_SHIFT2+2), LevelShift);
+                //sum = _mm_packs_epi32(sum, sum);
+                //sum = _mm_slli_si128(sum, 14);
+                //tblock = _mm_or_si128(tblock, sum);
+                //tblock = _mm_srli_si128(tblock, 2);
+                block[x] = static_cast<u16>(_mm_cvtsi128_si32(sum));
+            }
+        }
+#endif
     }
 
     void JPEG::copyComponents(Context& context, s32 ux, s32 uy)
