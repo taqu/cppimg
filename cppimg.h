@@ -93,24 +93,6 @@ namespace cppimg
     typedef ::size_t size_t;
 #endif
 
-#ifndef CPPIMG_NULL
-#ifdef __cplusplus
-#   if 201103L<=__cplusplus || 1900<=_MSC_VER
-#       define CPPIMG_CPP11 1
-#   endif
-#endif
-
-#ifdef __cplusplus
-#   ifdef CPPIMG_CPP11
-#       define CPPIMG_NULL nullptr
-#   else
-#       define CPPIMG_NULL 0
-#   endif
-#else
-#   define CPPIMG_NULL (void*)0
-#endif
-#endif
-
 #ifndef CPPIMG_FUNC
 #define CPPIMG_FUNC
     using std::move;
