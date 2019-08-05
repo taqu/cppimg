@@ -20,6 +20,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUTPUT_DIRECTORY}")
 
 add_executable(${ProjectName} ${FILES})
 
+if(CPPIMG_DISABLE_AVX)
+    add_definitions(-DCPPIMG_DISABLE_AVX)
+endif()
+
 if(MSVC)
     set(DEFAULT_CXX_FLAGS "/DWIN32 /D_WINDOWS /D_MBCS /W4 /WX- /nologo /fp:precise /arch:AVX /Zc:wchar_t /TP /Gd")
     if("1800" VERSION_LESS MSVC_VERSION)

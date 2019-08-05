@@ -24,7 +24,7 @@ before_script:
   - cd ${TRAVIS_BUILD_DIR}/test/
   - mkdir build
   - cd build
-  - cmake ..
+  - cmake -DCPPIMG_DISABLE_AVX=1 ..
 script:
   - make
   - ./TestCppImg
