@@ -281,41 +281,41 @@ namespace cppimg
     static const u32 MaxHeight = 0x7FFFFFFFU;
     static const s32 MaxChannels = 4;
 
-    enum ColorType
+    enum class ColorType
     {
-        ColorType_GRAY,
-        ColorType_RGB,
-        ColorType_RGBA,
+        GRAY = 0,
+        RGB,
+        RGBA,
     };
 
-    enum Type
+    enum class Type
     {
-        Type_UINT = 0,
-        Type_HALF = 1,
-        Type_FLOAT = 2,
+        UINT = 0,
+        HALF = 1,
+        FLOAT = 2,
     };
 
-    enum Channel
+    enum class Channel
     {
-        Channel_R =0,
-        Channel_G,
-        Channel_B,
-        Channel_A,
-        Channel_Y,
-        Channel_Num,
+        R =0,
+        G,
+        B,
+        A,
+        Y,
+        Num,
     };
 
-    extern const Char* ChannelNames[Channel_Num];
+    extern const Char* ChannelNames[static_cast<u32>(Channel::Num)];
 
     inline s32 getBytesPerPixel(ColorType colorType)
     {
         switch(colorType)
         {
-        case ColorType_GRAY:
+        case ColorType::GRAY:
             return 1;
-        case ColorType_RGB:
+        case ColorType::RGB:
             return 3;
-        case ColorType_RGBA:
+        case ColorType::RGBA:
         default:
             return 4;
         };
@@ -567,20 +567,20 @@ namespace cppimg
 
         bool open(const Char* filepath, const Char* mode);
 
-        FStream();
-        FStream(FStream&& rhs);
+        FStream() noexcept;
+        FStream(FStream&& rhs) noexcept;
         ~FStream();
 
         FILE* file_;
     };
 
     template<class T>
-    FStream<T>::FStream()
+    FStream<T>::FStream() noexcept
         :file_(CPPIMG_NULL)
     {}
 
     template<class T>
-    FStream<T>::FStream(FStream&& rhs)
+    FStream<T>::FStream(FStream&& rhs) noexcept
         :file_(rhs.file_)
     {
         rhs.file_ = CPPIMG_NULL;
@@ -652,9 +652,9 @@ namespace cppimg
     public:
         typedef FStream<Stream> parent_type;
 
-        IFStream()
+        IFStream() noexcept
         {}
-        IFStream(IFStream&& rhs)
+        IFStream(IFStream&& rhs) noexcept
             :parent_type(cppimg::move(rhs))
         {}
         ~IFStream()
@@ -686,9 +686,9 @@ namespace cppimg
     public:
         typedef FStream<Stream> parent_type;
 
-        OFStream()
+        OFStream() noexcept
         {}
-        OFStream(OFStream&& rhs)
+        OFStream(OFStream&& rhs) noexcept
             :parent_type(cppimg::move(rhs))
         {}
         ~OFStream()
@@ -2204,7 +2204,7 @@ namespace cppimg
 #endif
     }
 
-    const Char* ChannelNames[Channel_Num]
+    const Char* ChannelNames[static_cast<s32>(Channel::Num)]
     {
         "R",
         "G",
@@ -2226,11 +2226,11 @@ namespace cppimg
     s32 getSize(Type type)
     {
         switch(type){
-        case Type_UINT:
+        case Type::UINT:
             return sizeof(u32);
-        case Type_HALF:
+        case Type::HALF:
             return sizeof(u16);
-        case Type_FLOAT:
+        case Type::FLOAT:
         default:
             return sizeof(f32);
         }
@@ -2239,11 +2239,11 @@ namespace cppimg
     s32 getNumChannels(ColorType type)
     {
         switch(type){
-        case ColorType_GRAY:
+        case ColorType::GRAY:
             return 1;
-        case ColorType_RGB:
+        case ColorType::RGB:
             return 3;
-        case ColorType_RGBA:
+        case ColorType::RGBA:
             return 4;
         default:
             CPPIMG_ASSERT(false);
@@ -2280,13 +2280,13 @@ namespace cppimg
             for(s32 j=0; j<width; ++j){
                 for(s32 k=0; k<channels; ++k){
                     switch(types[k]){
-                    case Type_UINT:
+                    case static_cast<s32>(Type::UINT):
                         *d = u32ToU8(*reinterpret_cast<const u32*>(s));
                         break;
-                    case Type_HALF:
+                    case static_cast<s32>(Type::HALF):
                         *d = f16ToU8(*reinterpret_cast<const u16*>(s));
                         break;
-                    case Type_FLOAT:
+                    case static_cast<s32>(Type::FLOAT):
                         *d = f32ToU8(*reinterpret_cast<const f32*>(s));
                         break;
                     default:
@@ -2307,6 +2307,7 @@ namespace
     //----------------------------------------------------
     //--- CRC32
     //----------------------------------------------------
+// clang-format off
     u32 CRC32Table[] =
     {
         0x0U,0x77073096U,0xEE0E612CU,0x990951BAU,0x76DC419U,0x706AF48FU,0xE963A535U,0x9E6495A3U,0xEDB8832U,0x79DCB8A4U,0xE0D5E91EU,0x97D2D988U,0x9B64C2BU,0x7EB17CBDU,0xE7B82D07U,0x90BF1D91U,0x1DB71064U,0x6AB020F2U,0xF3B97148U,0x84BE41DEU,0x1ADAD47DU,0x6DDDE4EBU,0xF4D4B551U,0x83D385C7U,0x136C9856U,0x646BA8C0U,0xFD62F97AU,0x8A65C9ECU,0x14015C4FU,0x63066CD9U,0xFA0F3D63U,0x8D080DF5U,0x3B6E20C8U,0x4C69105EU,0xD56041E4U,0xA2677172U,0x3C03E4D1U,0x4B04D447U,0xD20D85FDU,0xA50AB56BU,0x35B5A8FAU,0x42B2986CU,0xDBBBC9D6U,0xACBCF940U,0x32D86CE3U,0x45DF5C75U,0xDCD60DCFU,0xABD13D59U,0x26D930ACU,0x51DE003AU,0xC8D75180U,0xBFD06116U,0x21B4F4B5U,0x56B3C423U,0xCFBA9599U,0xB8BDA50FU,0x2802B89EU,0x5F058808U,0xC60CD9B2U,0xB10BE924U,0x2F6F7C87U,0x58684C11U,0xC1611DABU,0xB6662D3DU,
@@ -2314,6 +2315,7 @@ namespace
         0xEDB88320U,0x9ABFB3B6U,0x3B6E20CU,0x74B1D29AU,0xEAD54739U,0x9DD277AFU,0x4DB2615U,0x73DC1683U,0xE3630B12U,0x94643B84U,0xD6D6A3EU,0x7A6A5AA8U,0xE40ECF0BU,0x9309FF9DU,0xA00AE27U,0x7D079EB1U,0xF00F9344U,0x8708A3D2U,0x1E01F268U,0x6906C2FEU,0xF762575DU,0x806567CBU,0x196C3671U,0x6E6B06E7U,0xFED41B76U,0x89D32BE0U,0x10DA7A5AU,0x67DD4ACCU,0xF9B9DF6FU,0x8EBEEFF9U,0x17B7BE43U,0x60B08ED5U,0xD6D6A3E8U,0xA1D1937EU,0x38D8C2C4U,0x4FDFF252U,0xD1BB67F1U,0xA6BC5767U,0x3FB506DDU,0x48B2364BU,0xD80D2BDAU,0xAF0A1B4CU,0x36034AF6U,0x41047A60U,0xDF60EFC3U,0xA867DF55U,0x316E8EEFU,0x4669BE79U,0xCB61B38CU,0xBC66831AU,0x256FD2A0U,0x5268E236U,0xCC0C7795U,0xBB0B4703U,0x220216B9U,0x5505262FU,0xC5BA3BBEU,0xB2BD0B28U,0x2BB45A92U,0x5CB36A04U,0xC2D7FFA7U,0xB5D0CF31U,0x2CD99E8BU,0x5BDEAE1DU,
         0x9B64C2B0U,0xEC63F226U,0x756AA39CU,0x26D930AU,0x9C0906A9U,0xEB0E363FU,0x72076785U,0x5005713U,0x95BF4A82U,0xE2B87A14U,0x7BB12BAEU,0xCB61B38U,0x92D28E9BU,0xE5D5BE0DU,0x7CDCEFB7U,0xBDBDF21U,0x86D3D2D4U,0xF1D4E242U,0x68DDB3F8U,0x1FDA836EU,0x81BE16CDU,0xF6B9265BU,0x6FB077E1U,0x18B74777U,0x88085AE6U,0xFF0F6A70U,0x66063BCAU,0x11010B5CU,0x8F659EFFU,0xF862AE69U,0x616BFFD3U,0x166CCF45U,0xA00AE278U,0xD70DD2EEU,0x4E048354U,0x3903B3C2U,0xA7672661U,0xD06016F7U,0x4969474DU,0x3E6E77DBU,0xAED16A4AU,0xD9D65ADCU,0x40DF0B66U,0x37D83BF0U,0xA9BCAE53U,0xDEBB9EC5U,0x47B2CF7FU,0x30B5FFE9U,0xBDBDF21CU,0xCABAC28AU,0x53B39330U,0x24B4A3A6U,0xBAD03605U,0xCDD70693U,0x54DE5729U,0x23D967BFU,0xB3667A2EU,0xC4614AB8U,0x5D681B02U,0x2A6F2B94U,0xB40BBE37U,0xC30C8EA1U,0x5A05DF1BU,0x2D02EF8DU,
     };
+// clang-format on
 
     u32 updateCRC32(u32 crc, u32 len, const u8* buffer)
     {
@@ -2559,7 +2561,7 @@ namespace
 
         width = static_cast<u32>(infoHeader.width_);
         height = static_cast<u32>(infoHeader.height_);
-        colorType = 24 == infoHeader.bitCount_? ColorType_RGB : ColorType_RGBA;
+        colorType = 24 == infoHeader.bitCount_? ColorType::RGB : ColorType::RGBA;
         if(CPPIMG_NULL == image){
             return true;
         }
@@ -2616,8 +2618,8 @@ namespace
         s32 pitch, dstPitch;
         switch(colorType)
         {
-        case ColorType_GRAY:
-        case ColorType_RGB:
+        case ColorType::GRAY:
+        case ColorType::RGB:
         {
             infoHeader.bitCount_ = 24;
             pitch = 3*width;
@@ -2626,7 +2628,7 @@ namespace
         }
         break;
 
-        case ColorType_RGBA:
+        case ColorType::RGBA:
             infoHeader.bitCount_ = 32;
             pitch = dstPitch = width * 4;
             infoHeader.sizeImage_ = 4 * width * height;
@@ -2652,7 +2654,7 @@ namespace
         const u8* buffer = reinterpret_cast<const u8*>(image);
         switch(colorType)
         {
-        case ColorType_GRAY:
+        case ColorType::GRAY:
             buffer += width * (height-1);
             for(s32 i = 0; i<height; ++i){
                 const u8* b = buffer;
@@ -2670,7 +2672,7 @@ namespace
                 buffer -= width;
             }
             break;
-        case ColorType_RGB:
+        case ColorType::RGB:
             buffer += pitch * (height-1);
             for(s32 i = 0; i<height; ++i){
                 const u8* b = buffer;
@@ -2688,7 +2690,7 @@ namespace
                 buffer -= pitch;
             }
             break;
-        case ColorType_RGBA:
+        case ColorType::RGBA:
             buffer += pitch * (height-1);
             for(s32 i = 0; i<height; ++i){
                 const u8* b = buffer;
@@ -2998,7 +3000,7 @@ namespace
             return false;
         }
 
-        colorType = (24 == bpp)? ColorType_RGB : ColorType_RGBA;
+        colorType = (24 == bpp)? ColorType::RGB : ColorType::RGBA;
         if(CPPIMG_NULL == image){
             return true;
         }
@@ -3056,24 +3058,24 @@ namespace
         tgaHeader[Offset_HeightL] = height & 0xFFU;
         tgaHeader[Offset_HeightH] = (height>>8) & 0xFFU;
 
-        tgaHeader[Offset_BitPerPixel] = (ColorType_RGB == colorType)? 24 : 32;
+        tgaHeader[Offset_BitPerPixel] = (ColorType::RGB == colorType)? 24 : 32;
 
         Type type = (0 != (options & Option_Compress))? Type_FullColorRLE : Type_FullColor;
         tgaHeader[Offset_ImageType] = static_cast<u8>(type);
 
-        tgaHeader[Offset_Discripter] = (ColorType_RGB == colorType)? 0 : 8; //bit depth of alpha channel
+        tgaHeader[Offset_Discripter] = (ColorType::RGB == colorType)? 0 : 8; //bit depth of alpha channel
 
         if(stream.write(TGA_HEADER_SIZE, tgaHeader)<=0){
             return false;
         }
         if(Type_FullColorRLE == tgaHeader[Offset_ImageType]){
             switch(colorType){
-            case ColorType_RGB:
+            case ColorType::RGB:
                 if(!writeRLE(stream, width, height, 3, reinterpret_cast<const u8*>(image))){
                     return false;
                 }
                 break;
-            case ColorType_RGBA:
+            case ColorType::RGBA:
                 if(!writeRLE(stream, width, height, 4, reinterpret_cast<const u8*>(image))){
                     return false;
                 }
@@ -3083,12 +3085,12 @@ namespace
             }
         }else{
             switch(colorType){
-            case ColorType_RGB:
+            case ColorType::RGB:
                 if(!writeUncompress(stream, width, height, 3, reinterpret_cast<const u8*>(image))){
                     return false;
                 }
                 break;
-            case ColorType_RGBA:
+            case ColorType::RGBA:
                 if(!writeUncompress(stream, width, height, 4, reinterpret_cast<const u8*>(image))){
                     return false;
                 }
@@ -3115,19 +3117,19 @@ namespace
         Char buffer[64];
         s32 scomponents, dcomponents;
         switch(colorType){
-        case ColorType_GRAY:
+        case ColorType::GRAY:
             if(stream.write(3, "P2\n")<=0){
                 return false;
             }
             scomponents = dcomponents = 1;
             break;
-        case ColorType_RGB:
+        case ColorType::RGB:
             if(stream.write(3, "P3\n")<=0){
                 return false;
             }
             scomponents = dcomponents = 3;
             break;
-        case ColorType_RGBA:
+        case ColorType::RGBA:
             if(stream.write(3, "P3\n")<=0){
                 return false;
             }
@@ -3190,24 +3192,24 @@ namespace
         s32 alpha = 0;
         switch(chunkIHDR.colorType_){
         case PNG::ColorType_Gray:
-            colorType = ColorType_GRAY;
+            colorType = ColorType::GRAY;
             color = 1;
             break;
         case PNG::ColorType_True:
-            colorType = ColorType_RGB;
+            colorType = ColorType::RGB;
             color = 3;
             break;
         case PNG::ColorType_Index:
-            colorType = ColorType_RGB;
+            colorType = ColorType::RGB;
             color = 1;
             break;
         case PNG::ColorType_GrayAlpha:
-            colorType = ColorType_RGBA;
+            colorType = ColorType::RGBA;
             color = 1;
             alpha = 1;
             break;
         case PNG::ColorType_TrueAlpha:
-            colorType = ColorType_RGBA;
+            colorType = ColorType::RGBA;
             color = 3;
             alpha = 1;
             break;
@@ -4059,7 +4061,7 @@ namespace
             }
         }
 
-        colorType = ColorType_RGB;
+        colorType = ColorType::RGB;
         Context* context = reinterpret_cast<Context*>(CPPIMG_MALLOC(sizeof(Context)));
         AutoFree autoFree(context);
         CPPIMG_MEMSET(context, 0, sizeof(Context));
@@ -4147,10 +4149,10 @@ namespace
         // Support only gray and YCrCb formats
         switch(context->frame_.numComponents_){
         case 1:
-            colorType = ColorType_GRAY;
+            colorType = ColorType::GRAY;
             break;
         case 3:
-            colorType = ColorType_RGB;
+            colorType = ColorType::RGB;
             break;
         default:
             return false;
@@ -4925,20 +4927,20 @@ namespace
     bool OpenEXR::Header::getColorType(ColorType& colorType) const
     {
         const Channel* channels[4];
-        channels[0] = findChannel(ChannelNames[Channel_R]);
-        channels[1] = findChannel(ChannelNames[Channel_G]);
-        channels[2] = findChannel(ChannelNames[Channel_B]);
-        channels[3] = findChannel(ChannelNames[Channel_A]);
+        channels[0] = findChannel(ChannelNames[static_cast<u32>(cppimg::Channel::R)]);
+        channels[1] = findChannel(ChannelNames[static_cast<u32>(cppimg::Channel::G)]);
+        channels[2] = findChannel(ChannelNames[static_cast<u32>(cppimg::Channel::B)]);
+        channels[3] = findChannel(ChannelNames[static_cast<u32>(cppimg::Channel::A)]);
 
         if(CPPIMG_NULL != channels[0]
             && CPPIMG_NULL != channels[1]
             && CPPIMG_NULL != channels[2]){
 
-            colorType = (CPPIMG_NULL != channels[3])? ColorType_RGBA : ColorType_RGB;
+            colorType = (CPPIMG_NULL != channels[3])? ColorType::RGBA : ColorType::RGB;
 
         }else{
-            channels[0] = findChannel(ChannelNames[Channel_Y]);
-            colorType = ColorType_GRAY;
+            channels[0] = findChannel(ChannelNames[static_cast<u32>(cppimg::Channel::Y)]);
+            colorType = ColorType::GRAY;
             if(CPPIMG_NULL == channels[0]){
                 return false;
             }
@@ -4983,15 +4985,15 @@ namespace
     void OpenEXR::Header::getChannelAssign(s32 assign[MaxInChannels]) const
     {
         for(s32 i=0; i<numChannels_; ++i){
-            if(0 == strcmp(channels_[i].name_, ChannelNames[Channel_R])){
+            if(0 == strcmp(channels_[i].name_, ChannelNames[static_cast<u32>(cppimg::Channel::R)])){
                 assign[i] = 0;
-            }else if(0 == strcmp(channels_[i].name_, ChannelNames[Channel_G])){
+            }else if(0 == strcmp(channels_[i].name_, ChannelNames[static_cast<u32>(cppimg::Channel::G)])){
                 assign[i] = 1;
-            }else if(0 == strcmp(channels_[i].name_, ChannelNames[Channel_B])){
+            }else if(0 == strcmp(channels_[i].name_, ChannelNames[static_cast<u32>(cppimg::Channel::B)])){
                 assign[i] = 2;
-            }else if(0 == strcmp(channels_[i].name_, ChannelNames[Channel_A])){
+            }else if(0 == strcmp(channels_[i].name_, ChannelNames[static_cast<u32>(cppimg::Channel::A)])){
                 assign[i] = 3;
-            }else if(0 == strcmp(channels_[i].name_, ChannelNames[Channel_Y])){
+            }else if(0 == strcmp(channels_[i].name_, ChannelNames[static_cast<u32>(cppimg::Channel::Y)])){
                 assign[i] = 0;
             }
         }
@@ -5761,11 +5763,11 @@ namespace
     {
         static const Char* Names[5] = {"A", "B", "G", "R", "Y"};
         switch(colorType){
-        case ColorType_GRAY:
+        case ColorType::GRAY:
             return writeChannels(stream, 1, &Names[4], pixelType, 0, 1, 1);
-        case ColorType_RGB:
+        case ColorType::RGB:
             return writeChannels(stream, 3, &Names[1], pixelType, 0, 1, 1);
-        case ColorType_RGBA:
+        case ColorType::RGBA:
             return writeChannels(stream, 4, &Names[0], pixelType, 0, 1, 1);
         default:
             CPPIMG_ASSERT(false);
@@ -5792,7 +5794,7 @@ namespace
             if(stream.write(strlen(names[i])+1, names[i])<=0){
                 return 0;
             }
-            s32 channel[4] = {pixelType, linear, xSampling, ySampling};
+            s32 channel[4] = {static_cast<s32>(pixelType), linear, xSampling, ySampling};
             if(stream.write(4*sizeof(s32), channel)<=0){
                 return 0;
             }
@@ -5960,15 +5962,15 @@ namespace
     {
         s32 bytesPerChannel = getSize(pixelType);
         switch(colorType){
-        case ColorType_GRAY:
+        case ColorType::GRAY:
             offsets[0] = 0;
             break;
-        case ColorType_RGB:
+        case ColorType::RGB:
             offsets[0] = (bytesPerChannel<<1);
             offsets[1] = bytesPerChannel;
             offsets[2] = 0;
             break;
-        case ColorType_RGBA:
+        case ColorType::RGBA:
             offsets[0] = (bytesPerChannel<<1) + bytesPerChannel;
             offsets[1] = (bytesPerChannel<<1);
             offsets[2] = bytesPerChannel;
@@ -6172,13 +6174,13 @@ namespace
         s32 bytesPerChunk = bytesPerLine * linesPerBlock;
         const s8* channelOrder = CPPIMG_NULL;
         switch(colorType){
-        case ColorType_GRAY:
+        case ColorType::GRAY:
             channelOrder = ChannelOrder_GRAY;
             break;
-        case ColorType_RGB:
+        case ColorType::RGB:
             channelOrder = ChannelOrder_RGB;
             break;
-        case ColorType_RGBA:
+        case ColorType::RGBA:
             channelOrder = ChannelOrder_RGBA;
             break;
         default:

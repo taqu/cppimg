@@ -62,12 +62,12 @@ namespace
         if(cppimg::OpenEXR::read(information, image, file)){
             file.close();
             for(cppimg::s32 i=0; i<information.numChannels_; ++i){
-                CHECK(information.types_[i] == cppimg::Type_HALF);
+              CHECK(information.types_[i] == static_cast<cppimg::s32>(cppimg::Type::HALF));
             }
             cppimg::OFStream ofile;
             SPRINTF(buffer, "%s%s", directory, dst);
             if(ofile.open(buffer)){
-                bool result = cppimg::OpenEXR::write(ofile, information.width_, information.height_, information.colorType_, cppimg::Type_HALF, image);
+                bool result = cppimg::OpenEXR::write(ofile, information.width_, information.height_, information.colorType_, cppimg::Type::HALF, image);
                 CHECK(result);
                 ofile.close();
             }
