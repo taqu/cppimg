@@ -2,15 +2,18 @@
 [![Build Status](https://travis-ci.org/taqu/cppimg.svg?branch=master)](https://travis-ci.org/taqu/cppimg)
 
 # Introduction
-A library of loading/saveing some image formats for C++
+
+A library of loading/saveing some image formats in C++
 
 # Usage
+
 To create an implementation, put CPPIMG_IMPLEMENTATION like below.
 
     #define CPPIMG_IMPLEMENTATION
     #include "cppimg.h"
 
 ## Options
+
 To disable using Half float convert (F16C instructions), put before "include cppimg.h"
 
     #define CPPIMG_DISABLE_F16C
@@ -29,8 +32,10 @@ To disable using AVX/SSE instructions, put before "include cppimg.h"
 |PNG|yes|no|8/24/32||
 |JPG|yes|no|8/24|Support only base line. Not support progressive.|
 |OpenEXR|yes|yes|16/32|Support only gray, rgb, or rgba image.|
+|DDS|yes|yes| - ||
 
 ## Supported properties in Open EXR
+
 |Property|Input|Output|
 |:--|:--|:--|
 |No Compression|yes|no|
@@ -43,4 +48,6 @@ To disable using AVX/SSE instructions, put before "include cppimg.h"
 |Deep Data|no|no|
 
 # License
-This is free and unencumbered software released into the public domain.
+
+This software is distributed under the MIT or public domain, choose whichever you like.
+
