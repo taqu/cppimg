@@ -495,7 +495,18 @@ struct F16ToU8
     }
 };
 
+struct Color
+{
+    static float toFloat(u8 x);
+    static u8 toU8(float x);
+    static u8 toGray(u8 r, u8 g, u8 b);
+};
+
 void convert(s32 width, s32 height, s32 channels, u8* dst, const void* src, const s32* types);
+void convertGrayToRGB(s32 width, s32 height, u8* dst, const u8* src);
+void convertRGBAToRGB(s32 width, s32 height, u8* dst, const u8* src);
+void convertRGBToGray(s32 width, s32 height, u8* dst, const u8* src);
+void convertRGBAToGray(s32 width, s32 height, u8* dst, const u8* src);
 
 //----------------------------------------------------
 //---
@@ -2707,6 +2718,27 @@ s32 getNumChannels(ColorType type)
     }
 }
 
+float Color::toFloat(u8 x)
+{
+    return (1.0f / 255.0f) * x;
+}
+
+u8 Color::toU8(float x)
+{
+    s32 t = static_cast<s32>(x * 256.0f);
+    if(t < 0) {
+        return 0;
+    }
+    return (0 <= t) ? (t < 256 ? static_cast<u8>(t) : 255) : 0;
+}
+
+u8 Color::toGray(u8 r, u8 g, u8 b)
+{
+    float x = 0.299f*r + 0.587f*g + 0.114f*b;
+    s32 t = static_cast<s32>(x);
+    return t < 256 ? static_cast<u8>(t) : 255;
+}
+
 void convert(s32 width, s32 height, s32 channels, u8* dst, const void* src, const s32* types)
 {
     CPPIMG_ASSERT(0 <= width);
@@ -2755,6 +2787,74 @@ void convert(s32 width, s32 height, s32 channels, u8* dst, const void* src, cons
         }
         dr += dstStep;
         sr += srcStep;
+    }
+}
+
+void convertGrayToRGB(s32 width, s32 height, u8* dst, const u8* src)
+{
+    CPPIMG_ASSERT(0 <= width);
+    CPPIMG_ASSERT(0 <= height);
+    CPPIMG_ASSERT(CPPIMG_NULL != dst);
+    CPPIMG_ASSERT(CPPIMG_NULL != src);
+
+    for(s32 i = 0; i < height; ++i) {
+        for(s32 j = 0; j < width; ++j) {
+            const u8* s = src + i*width+j;
+            u8* d = dst + (i*width+j)*3;
+            d[0] = s[0];
+            d[1] = s[0];
+            d[2] = s[0];
+        }
+    }
+}
+
+void convertRGBAToRGB(s32 width, s32 height, u8* dst, const u8* src)
+{
+    CPPIMG_ASSERT(0 <= width);
+    CPPIMG_ASSERT(0 <= height);
+    CPPIMG_ASSERT(CPPIMG_NULL != dst);
+    CPPIMG_ASSERT(CPPIMG_NULL != src);
+
+    for(s32 i = 0; i < height; ++i) {
+        for(s32 j = 0; j < width; ++j) {
+            const u8* s = src + (i*width+j)*4;
+            u8* d = dst + (i*width+j)*3;
+            d[0] = s[0];
+            d[1] = s[1];
+            d[2] = s[2];
+        }
+    }
+}
+
+void convertRGBToGray(s32 width, s32 height, u8* dst, const u8* src)
+{
+    CPPIMG_ASSERT(0 <= width);
+    CPPIMG_ASSERT(0 <= height);
+    CPPIMG_ASSERT(CPPIMG_NULL != dst);
+    CPPIMG_ASSERT(CPPIMG_NULL != src);
+
+    for(s32 i = 0; i < height; ++i) {
+        for(s32 j = 0; j < width; ++j) {
+            const u8* s = src + (i*width+j)*3;
+            u8* d = dst + (i*width+j);
+            d[0] = Color::toGray(src[0], src[1], src[2]);
+        }
+    }
+}
+
+void convertRGBAToGray(s32 width, s32 height, u8* dst, const u8* src)
+{
+    CPPIMG_ASSERT(0 <= width);
+    CPPIMG_ASSERT(0 <= height);
+    CPPIMG_ASSERT(CPPIMG_NULL != dst);
+    CPPIMG_ASSERT(CPPIMG_NULL != src);
+
+    for(s32 i = 0; i < height; ++i) {
+        for(s32 j = 0; j < width; ++j) {
+            const u8* s = src + (i*width+j)*4;
+            u8* d = dst + (i*width+j);
+            d[0] = Color::toGray(src[0], src[1], src[2]);
+        }
     }
 }
 
