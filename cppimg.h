@@ -54,7 +54,7 @@ Put '#define CPPIMG_DISABLE_PNG' to disable support for PNG.
 #include <dxgiformat.h>
 #include <sys/stat.h>
 #include <utility>
-//#define CPPIMG_IMPLEMENTATION
+// #define CPPIMG_IMPLEMENTATION
 
 #if !defined(CPPIMG_DISABLE_PNG) && !defined(CPPIMG_DISABLE_OPENEXR)
 
@@ -192,40 +192,6 @@ inline void CPPIMG_FCLOSE(FILE*& file)
         file = CPPIMG_NULL;
     }
 }
-#    endif
-
-#    ifndef CPPIMG_MALLOC
-#        define CPPIMG_MALLOC(size) malloc(size)
-#    endif
-
-#    ifndef CPPIMG_FREE
-#        define CPPIMG_FREE(ptr) \
-            free(ptr); \
-            (ptr) = CPPIMG_NULL
-#    endif
-
-#    ifndef CPPIMG_NEW
-#        define CPPIMG_NEW new
-#    endif
-
-#    ifndef CPPIMG_PLACEMENT_NEW
-#        define CPPIMG_PLACEMENT_NEW(ptr) new(ptr)
-#    endif
-
-#    ifndef CPPIMG_DELETE
-#        define CPPIMG_DELETE(ptr) \
-            delete(ptr); \
-            (ptr) = CPPIMG_NULL
-#    endif
-
-#    ifndef CPPIMG_DELETE_ARRAY
-#        define CPPIMG_DELETE_ARRAY(ptr) \
-            delete[](ptr); \
-            (ptr) = CPPIMG_NULL
-#    endif
-
-#    ifndef CPPIMG_MEMSET
-#        define CPPIMG_MEMSET(ptr, value, size) memset((ptr), (value), (size))
 #    endif
 
 template<class T>
@@ -427,39 +393,39 @@ void convertType(s32 width, s32 height, s32 channels, T* dst, const U* src, V fu
 }
 
 /**
-    */
+ */
 inline void convertF32ToF16(s32 width, s32 height, s32 channels, u16* dst, const f32* src)
 {
     convertType(width, height, channels, dst, src, F32ToF16());
 }
 /**
-    */
+ */
 inline void convertF16ToF32(s32 width, s32 height, s32 channels, f32* dst, const u16* src)
 {
     convertType(width, height, channels, dst, src, F16ToF32());
 }
 
 /**
-    */
+ */
 inline void convertF32ToU32(s32 width, s32 height, s32 channels, u32* dst, const f32* src)
 {
     convertType(width, height, channels, dst, src, F32ToU32());
 }
 /**
-    */
+ */
 inline void convertU32ToF32(s32 width, s32 height, s32 channels, f32* dst, const u32* src)
 {
     convertType(width, height, channels, dst, src, U32ToF32());
 }
 
 /**
-    */
+ */
 inline void convertF16ToU32(s32 width, s32 height, s32 channels, u32* dst, const u16* src)
 {
     convertType(width, height, channels, dst, src, F16ToU32());
 }
 /**
-    */
+ */
 inline void convertU32ToF16(s32 width, s32 height, s32 channels, u16* dst, const u32* src)
 {
     convertType(width, height, channels, dst, src, U32ToF16());
@@ -507,47 +473,6 @@ void convertGrayToRGB(s32 width, s32 height, u8* dst, const u8* src);
 void convertRGBAToRGB(s32 width, s32 height, u8* dst, const u8* src);
 void convertRGBToGray(s32 width, s32 height, u8* dst, const u8* src);
 void convertRGBAToGray(s32 width, s32 height, u8* dst, const u8* src);
-
-//----------------------------------------------------
-//---
-//--- Auto
-//---
-//----------------------------------------------------
-template<class T>
-class Auto
-{
-public:
-    Auto()
-        : pointer_(CPPIMG_NULL)
-    {
-    }
-
-    explicit Auto(T* pointer)
-        : pointer_(pointer)
-    {
-    }
-
-    ~Auto()
-    {
-        CPPIMG_DELETE(pointer_);
-    }
-
-    const T* operator->() const
-    {
-        return pointer_;
-    }
-
-    T* operator->()
-    {
-        return pointer_;
-    }
-
-private:
-    Auto& operator=(const Auto&) = delete;
-    Auto& operator=(Auto&&) = delete;
-
-    T* pointer_;
-};
 
 //----------------------------------------------------
 //---
@@ -811,7 +736,7 @@ private:
 
     struct HEADER
     {
-        //u16 type_; /// magic number
+        // u16 type_; /// magic number
         u32 size_; /// file size
         u16 reserve1_;
         u16 reserve2_;
@@ -1128,7 +1053,7 @@ public:
         @param colorType
         @param stream
         */
-    //static bool write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image);
+    // static bool write(Stream& stream, s32 width, s32 height, ColorType colorType, const void* image);
 private:
     static const s32 QT_SIZE = 64;
     static const s32 QT_NUM = 4;
@@ -1219,8 +1144,8 @@ private:
 
     struct HuffmanTable
     {
-        //s8 class_; ///< table class 0=DC, 1=AC
-        //s8 id_; ///< table number 0-3
+        // s8 class_; ///< table class 0=DC, 1=AC
+        // s8 id_; ///< table number 0-3
         s32 number_;
         u16 code_[HT_MAX_SIZE];
         u8 size_[HT_MAX_SIZE];
@@ -1362,19 +1287,8 @@ private:
     class AutoFree
     {
     public:
-        AutoFree(Context* pointer)
-            : pointer_(pointer)
-        {
-        }
-
-        ~AutoFree()
-        {
-            if(CPPIMG_NULL != pointer_) {
-                CPPIMG_FREE(pointer_->work_);
-                CPPIMG_FREE(pointer_);
-            }
-        }
-
+        AutoFree(Context* pointer);
+        ~AutoFree();
     private:
         Context* pointer_;
     };
@@ -1406,28 +1320,28 @@ private:
     static const u8 MARKER_APP0 = 0xE0U;
 
     //
-    //static const u8 MARKER_COM   = 0xFEU;
-    //static const u8 MARKER_APP00 = 0xE0U;
-    //static const u8 MARKER_APP01 = 0xE1U;
-    //static const u8 MARKER_APP02 = 0xE2U;
-    //static const u8 MARKER_APP03 = 0xE3U;
-    //static const u8 MARKER_APP04 = 0xE4U;
-    //static const u8 MARKER_APP05 = 0xE5U;
-    //static const u8 MARKER_APP06 = 0xE6U;
-    //static const u8 MARKER_APP07 = 0xE7U;
-    //static const u8 MARKER_APP08 = 0xE8U;
-    //static const u8 MARKER_APP09 = 0xE9U;
-    //static const u8 MARKER_APP10 = 0xEAU;
-    //static const u8 MARKER_APP11 = 0xEBU;
-    //static const u8 MARKER_APP12 = 0xECU;
-    //static const u8 MARKER_APP13 = 0xEDU;
-    //static const u8 MARKER_APP14 = 0xEEU;
-    //static const u8 MARKER_APP15 = 0xEFU;
+    // static const u8 MARKER_COM   = 0xFEU;
+    // static const u8 MARKER_APP00 = 0xE0U;
+    // static const u8 MARKER_APP01 = 0xE1U;
+    // static const u8 MARKER_APP02 = 0xE2U;
+    // static const u8 MARKER_APP03 = 0xE3U;
+    // static const u8 MARKER_APP04 = 0xE4U;
+    // static const u8 MARKER_APP05 = 0xE5U;
+    // static const u8 MARKER_APP06 = 0xE6U;
+    // static const u8 MARKER_APP07 = 0xE7U;
+    // static const u8 MARKER_APP08 = 0xE8U;
+    // static const u8 MARKER_APP09 = 0xE9U;
+    // static const u8 MARKER_APP10 = 0xEAU;
+    // static const u8 MARKER_APP11 = 0xEBU;
+    // static const u8 MARKER_APP12 = 0xECU;
+    // static const u8 MARKER_APP13 = 0xEDU;
+    // static const u8 MARKER_APP14 = 0xEEU;
+    // static const u8 MARKER_APP15 = 0xEFU;
 
-    //static const u8 MARKER_APP00_JFIF = MARKER_APP00;
-    //static const u8 MARKER_APP01_EXIF = MARKER_APP01;
-    //static const u8 MARKER_APP02_ICC = MARKER_APP02;
-    //static const u8 MARKER_APP14_ADOBE = MARKER_APP14;
+    // static const u8 MARKER_APP00_JFIF = MARKER_APP00;
+    // static const u8 MARKER_APP01_EXIF = MARKER_APP01;
+    // static const u8 MARKER_APP02_ICC = MARKER_APP02;
+    // static const u8 MARKER_APP14_ADOBE = MARKER_APP14;
 
     static const u8 MARKER_RST0 = 0xD0U;
     static const u8 MARKER_RST1 = 0xD1U;
@@ -1718,7 +1632,7 @@ private:
     {
         Char name_[MaxStringSize];
         s32 pixelType_;
-        u8 flags_[4]; //flags_[0]: it is linear or not
+        u8 flags_[4]; // flags_[0]: it is linear or not
         s32 xSampling_;
         s32 ySampling_;
     };
@@ -1922,19 +1836,19 @@ private:
 
         Chromaticities chromaticities_;
 
-        //Tile Header
+        // Tile Header
         TiledDesc tiles_;
 
-        //Multi-Part Header
+        // Multi-Part Header
         Char view_[MaxStringSize];
 
-        //Multi-Part and Deep Data Header
+        // Multi-Part and Deep Data Header
         Char name_[MaxStringSize];
         Char type_[MaxStringSize];
         s32 version_;
         s32 chunkCount_;
 
-        //Deep Data Header
+        // Deep Data Header
         s32 maxSamplesPerPixel_;
 
         bool hasChromaticities_;
@@ -2330,23 +2244,23 @@ public:
     enum class ResourceMiscFlag
     {
         None = 0,
-        //GenerateMips = 0x01U<<0,
-        //Shared = 0x01U<<1,
+        // GenerateMips = 0x01U<<0,
+        // Shared = 0x01U<<1,
         TextureCube = 0x01U << 2,
-        //DrawIndirectArgs = 0x01U<<3,
-        //BufferAllowRawViews = 0x01U<<4,
-        //BufferStructured 0x01U<<5,
-        //ResourceClamp = 0x01U<<6,
-        //SharedKeyedMutex = 0x01U<<7,
-        //GDICompatible = 0x01U<<8,
-        //SharedNTHandle = 0x01U<<9
-        //RestrictedContent = 0x01U<<10,
-        //RestrictSharedResource = 0x01U<<11,
-        //RestrictedSharedResourceDriver = 0x01U<<12,
-        //Guarded = 0x01U<<13,
-        //TilePool = 0x01U<<14,
-        //Tiled = 0x01U<<15,
-        //HWProtected = 0x01U<<16,
+        // DrawIndirectArgs = 0x01U<<3,
+        // BufferAllowRawViews = 0x01U<<4,
+        // BufferStructured 0x01U<<5,
+        // ResourceClamp = 0x01U<<6,
+        // SharedKeyedMutex = 0x01U<<7,
+        // GDICompatible = 0x01U<<8,
+        // SharedNTHandle = 0x01U<<9
+        // RestrictedContent = 0x01U<<10,
+        // RestrictSharedResource = 0x01U<<11,
+        // RestrictedSharedResourceDriver = 0x01U<<12,
+        // Guarded = 0x01U<<13,
+        // TilePool = 0x01U<<14,
+        // Tiled = 0x01U<<15,
+        // HWProtected = 0x01U<<16,
     };
 
     enum class AlphaMode
@@ -2377,9 +2291,9 @@ public:
         u32 flags_;
         u32 height_;
         u32 width_;
-        u32 linearSize_; //The number of bytes per scan line in uncompressed.
-                         //Total number of bytes in top level in compressed. Pitch must be 4 byte aligned.
-        u32 depth_;      //depth of volume TextureRef
+        u32 linearSize_; // The number of bytes per scan line in uncompressed.
+                         // Total number of bytes in top level in compressed. Pitch must be 4 byte aligned.
+        u32 depth_; // depth of volume TextureRef
         u32 mipmapCount_;
         u32 reserved1_[11];
         DDS_PIXELFORMAT ddspf_;
@@ -2456,7 +2370,7 @@ private:
     static Format selectFormat(const DDS_PIXELFORMAT& ddspf);
 };
 } // namespace cppimg
-#endif //INC_CPPIMG_H_
+#endif // INC_CPPIMG_H_
 
 #ifdef CPPIMG_IMPLEMENTATION
 
@@ -2466,7 +2380,7 @@ private:
 #    define ALIGNED(N) __attribute__((aligned(N)))
 #endif
 
-//Enable the use of F16C intrinsic functions
+// Enable the use of F16C intrinsic functions
 #if !defined(_MSC_VER)
 #    define CPPIMG_DISABLE_F16C
 #endif
@@ -2476,8 +2390,55 @@ private:
 #    include <immintrin.h>
 #endif
 
+#ifndef CPPIMG_MALLOC
+#    define CPPIMG_MALLOC(size) malloc(size)
+#endif
+
+#ifndef CPPIMG_FREE
+#    define CPPIMG_FREE(ptr) \
+        free(ptr); \
+        (ptr) = CPPIMG_NULL
+#endif
+
+#ifndef CPPIMG_NEW
+#    define CPPIMG_NEW new
+#endif
+
+#ifndef CPPIMG_PLACEMENT_NEW
+#    define CPPIMG_PLACEMENT_NEW(ptr) new(ptr)
+#endif
+
+#ifndef CPPIMG_DELETE
+#    define CPPIMG_DELETE(ptr) \
+        delete(ptr); \
+        (ptr) = CPPIMG_NULL
+#endif
+
+#ifndef CPPIMG_DELETE_ARRAY
+#    define CPPIMG_DELETE_ARRAY(ptr) \
+        delete[](ptr); \
+        (ptr) = CPPIMG_NULL
+#endif
+
+#ifndef CPPIMG_MEMSET
+#    define CPPIMG_MEMSET(ptr, value, size) memset((ptr), (value), (size))
+#endif
+
 namespace cppimg
 {
+JPEG::AutoFree::AutoFree(Context* pointer)
+    : pointer_(pointer)
+{
+}
+
+JPEG::AutoFree::~AutoFree()
+{
+    if(CPPIMG_NULL != pointer_) {
+        CPPIMG_FREE(pointer_->work_);
+        CPPIMG_FREE(pointer_);
+    }
+}
+
 #ifdef CPPIMG_DEBUG
 //---------------------------------------------------------
 //---
@@ -2595,26 +2556,26 @@ u16 toFloat16(f32 f)
     u32 fraction = t.u32_ & 0x007FFFFFU;
 
     if(exponent == 0) {
-        return sign; //Signed zero
+        return sign; // Signed zero
 
     } else if(exponent == 0xFFU) {
         if(fraction == 0) {
-            return sign | 0x7C00U; //Signed infinity
+            return sign | 0x7C00U; // Signed infinity
         } else {
-            return static_cast<u16>((fraction >> 13) | 0x7C00U); //NaN
+            return static_cast<u16>((fraction >> 13) | 0x7C00U); // NaN
         }
     } else {
         exponent += (-127 + 15);
-        if(exponent >= 0x1F) { //Overflow
+        if(exponent >= 0x1F) { // Overflow
             return sign | 0x7C00U;
-        } else if(exponent <= 0) { //Underflow
+        } else if(exponent <= 0) { // Underflow
             s32 shift = 14 - exponent;
-            if(shift > 24) { //Too small
+            if(shift > 24) { // Too small
                 return sign;
             } else {
-                fraction |= 0x800000U; //Add hidden bit
+                fraction |= 0x800000U; // Add hidden bit
                 u16 frac = static_cast<u16>(fraction >> shift);
-                if((fraction >> (shift - 1)) & 0x01U) { //Round lowest 1 bit
+                if((fraction >> (shift - 1)) & 0x01U) { // Round lowest 1 bit
                     frac += 1;
                 }
                 return sign | frac;
@@ -2623,14 +2584,14 @@ u16 toFloat16(f32 f)
     }
 
     u16 ret = static_cast<u16>(sign | ((exponent << 10) & 0x7C00U) | (fraction >> 13));
-    if((fraction >> 12) & 0x01U) { //Round lower 1 bit
+    if((fraction >> 12) & 0x01U) { // Round lower 1 bit
         ret += 1;
     }
     return ret;
 #else
     ALIGNED(16)
     u16 result[8];
-    _mm_store_si128((__m128i*)result, _mm_cvtps_ph(_mm_set1_ps(f), 0)); //round to nearest
+    _mm_store_si128((__m128i*)result, _mm_cvtps_ph(_mm_set1_ps(f), 0)); // round to nearest
     return result[0];
 #endif
 }
@@ -2654,7 +2615,7 @@ f32 toFloat32(u16 h)
         }
 
     } else if(exponent == 0x1FU) {
-        exponent = 0xFFU; //Infinity or NaN
+        exponent = 0xFFU; // Infinity or NaN
 
     } else {
         exponent += (127 - 15);
@@ -2734,7 +2695,7 @@ u8 Color::toU8(float x)
 
 u8 Color::toGray(u8 r, u8 g, u8 b)
 {
-    float x = 0.299f*r + 0.587f*g + 0.114f*b;
+    float x = 0.299f * r + 0.587f * g + 0.114f * b;
     s32 t = static_cast<s32>(x);
     return t < 256 ? static_cast<u8>(t) : 255;
 }
@@ -2799,8 +2760,8 @@ void convertGrayToRGB(s32 width, s32 height, u8* dst, const u8* src)
 
     for(s32 i = 0; i < height; ++i) {
         for(s32 j = 0; j < width; ++j) {
-            const u8* s = src + i*width+j;
-            u8* d = dst + (i*width+j)*3;
+            const u8* s = src + i * width + j;
+            u8* d = dst + (i * width + j) * 3;
             d[0] = s[0];
             d[1] = s[0];
             d[2] = s[0];
@@ -2817,8 +2778,8 @@ void convertRGBAToRGB(s32 width, s32 height, u8* dst, const u8* src)
 
     for(s32 i = 0; i < height; ++i) {
         for(s32 j = 0; j < width; ++j) {
-            const u8* s = src + (i*width+j)*4;
-            u8* d = dst + (i*width+j)*3;
+            const u8* s = src + (i * width + j) * 4;
+            u8* d = dst + (i * width + j) * 3;
             d[0] = s[0];
             d[1] = s[1];
             d[2] = s[2];
@@ -2835,9 +2796,9 @@ void convertRGBToGray(s32 width, s32 height, u8* dst, const u8* src)
 
     for(s32 i = 0; i < height; ++i) {
         for(s32 j = 0; j < width; ++j) {
-            const u8* s = src + (i*width+j)*3;
-            u8* d = dst + (i*width+j);
-            d[0] = Color::toGray(src[0], src[1], src[2]);
+            const u8* s = src + (i * width + j) * 3;
+            u8* d = dst + (i * width + j);
+            d[0] = Color::toGray(src[0], s[1], s[2]);
         }
     }
 }
@@ -2851,9 +2812,9 @@ void convertRGBAToGray(s32 width, s32 height, u8* dst, const u8* src)
 
     for(s32 i = 0; i < height; ++i) {
         for(s32 j = 0; j < width; ++j) {
-            const u8* s = src + (i*width+j)*4;
-            u8* d = dst + (i*width+j);
-            d[0] = Color::toGray(src[0], src[1], src[2]);
+            const u8* s = src + (i * width + j) * 4;
+            u8* d = dst + (i * width + j);
+            d[0] = Color::toGray(src[0], s[1], s[2]);
         }
     }
 }
@@ -2881,7 +2842,7 @@ namespace
         return crc;
     }
 
-#if 0 //unused
+#if 0 // unused
     u32 CRC32(u32 len, const u8* buffer)
     {
         return updateCRC32(0xFFFFFFFFUL, len, buffer)^0xFFFFFFFFUL;
@@ -3103,13 +3064,13 @@ bool BMP::read(s32& width, s32& height, ColorType& colorType, void* image, Strea
         break;
     }
 
-    //Support only rgb no-compression
+    // Support only rgb no-compression
     if(!(infoHeader.compression_ == Compression_RGB && 24 == infoHeader.bitCount_)
        && !(infoHeader.compression_ == Compression_BitFields && 32 == infoHeader.bitCount_)) {
         return false;
     }
 
-    //Support only 24 or 32 bits
+    // Support only 24 or 32 bits
     if(24 != infoHeader.bitCount_
        && 32 != infoHeader.bitCount_) {
         return false;
@@ -3275,7 +3236,7 @@ bool BMP::write(Stream& stream, s32 width, s32 height, ColorType colorType, cons
 //----------------------------------------------------
 bool TGA::readInternal(s32 width, s32 height, u8 bpp, u8* image, Stream& stream)
 {
-    //transpose
+    // transpose
     s32 rowBytes = width * bpp;
     image += rowBytes * (height - 1);
 
@@ -3301,7 +3262,7 @@ bool TGA::readInternal(s32 width, s32 height, u8 bpp, u8* image, Stream& stream)
 
 bool TGA::readRLEInternal(s32 width, s32 height, u8 bpp, u8* image, Stream& stream)
 {
-    //transpose
+    // transpose
     s32 rowBytes = width * bpp;
     image += rowBytes * (height - 1);
     u8* row = image;
@@ -3313,10 +3274,10 @@ bool TGA::readRLEInternal(s32 width, s32 height, u8 bpp, u8* image, Stream& stre
         if(stream.read(1, &byte) <= 0) {
             return false;
         }
-        //If MSB is 1 then consecutive, else no-consecutive data
+        // If MSB is 1 then consecutive, else no-consecutive data
         s32 count = (byte & 0x7FU) + 1;
         if(0 != (byte & 0x80U)) {
-            //consecutive data
+            // consecutive data
             if(stream.read(bpp, tmp) <= 0) {
                 return false;
             }
@@ -3335,7 +3296,7 @@ bool TGA::readRLEInternal(s32 width, s32 height, u8 bpp, u8* image, Stream& stre
                 }
             }
         } else {
-            //no-consecutive data
+            // no-consecutive data
             for(s32 j = 0; j < count; ++j) {
                 if(stream.read(bpp, tmp) <= 0) {
                     return false;
@@ -3517,8 +3478,8 @@ bool TGA::writeRLE(Stream& stream, s32 width, s32 height, u8 bpp, const u8* imag
                     --y;
                 }
             }
-        } //if(0 != (run & 0x80U)
-    }     //while(0<=y)
+        } // if(0 != (run & 0x80U)
+    } // while(0<=y)
     return true;
 }
 
@@ -3540,13 +3501,13 @@ bool TGA::read(s32& width, s32& height, ColorType& colorType, void* image, Strea
     u8 bpp = tgaHeader[Offset_BitPerPixel];
     u8 type = tgaHeader[Offset_ImageType];
 
-    //Support only full color
+    // Support only full color
     if(Type_FullColor != type
        && Type_FullColorRLE != type) {
         return false;
     }
 
-    //Support either 24 or 32 bit
+    // Support either 24 or 32 bit
     if(24 != bpp
        && 32 != bpp) {
         return false;
@@ -3556,11 +3517,11 @@ bool TGA::read(s32& width, s32& height, ColorType& colorType, void* image, Strea
     if(CPPIMG_NULL == image) {
         return true;
     }
-    //Skip string, if it exists
+    // Skip string, if it exists
     if(0 < tgaHeader[Offset_IDLeng]) {
         stream.seek(tgaHeader[Offset_IDLeng], SEEK_CUR);
     }
-    //SKip color map, if it exists
+    // SKip color map, if it exists
     if(1 <= tgaHeader[Offset_ColorMapType]) {
         stream.seek(tgaHeader[Offset_IDLeng], SEEK_CUR);
         u32 length = static_cast<u32>(getU16(tgaHeader[Offset_ColorMapLengL], tgaHeader[Offset_ColorMapLengH]));
@@ -3610,7 +3571,7 @@ bool TGA::write(Stream& stream, s32 width, s32 height, ColorType colorType, cons
     Type type = (0 != (options & Option_Compress)) ? Type_FullColorRLE : Type_FullColor;
     tgaHeader[Offset_ImageType] = static_cast<u8>(type);
 
-    tgaHeader[Offset_Discripter] = (ColorType::RGB == colorType) ? 0 : 8; //bit depth of alpha channel
+    tgaHeader[Offset_Discripter] = (ColorType::RGB == colorType) ? 0 : 8; // bit depth of alpha channel
 
     if(stream.write(TGA_HEADER_SIZE, tgaHeader) <= 0) {
         return false;
@@ -3771,12 +3732,12 @@ bool PNG::read(s32& width, s32& height, ColorType& colorType, void* image, Strea
     cppimg::off_t start = stream.tell();
     bool loop = true;
     u32 totalIDAT = 0;
-    //sum size of IDAT
+    // sum size of IDAT
     do {
         if(!readHeader(chunk, stream)) {
             return false;
         }
-        //Support only critical chunks
+        // Support only critical chunks
         switch(chunk.type_) {
         case ChunkIDAT::Type:
             totalIDAT += chunk.length_;
@@ -3806,7 +3767,7 @@ bool PNG::read(s32& width, s32& height, ColorType& colorType, void* image, Strea
         if(!readHeader(chunk, stream)) {
             return false;
         }
-        //Support only critical chunks
+        // Support only critical chunks
         switch(chunk.type_) {
         case ChunkPLTE::Type:
             setChunkHeader(chunkPLTE, chunk);
@@ -3932,7 +3893,7 @@ bool PNG::ChunkIHDR::read(Stream& istream)
     width_ = reverse(width_);
     height_ = reverse(height_);
 
-    //Support only 8 bit depth
+    // Support only 8 bit depth
 #    if 0
         switch(color_){
         case PNG::ColorType_Gray:
@@ -4002,7 +3963,7 @@ bool PNG::ChunkIHDR::read(Stream& istream)
     }
 #    endif
 
-    //Don't support interlace
+    // Don't support interlace
     if(0 < interlace_) {
         return false;
     }
@@ -4013,7 +3974,7 @@ bool PNG::ChunkIHDR::read(Stream& istream)
 //----------------------------------------------------
 bool PNG::ChunkPLTE::read(Stream& stream)
 {
-    //It's assumed that (chunk size mod 3) equals zero
+    // It's assumed that (chunk size mod 3) equals zero
     if(0 != (length_ % 3)) {
         return false;
     }
@@ -4116,7 +4077,7 @@ bool PNG::ChunkIDAT::decode(void* image)
         };
         u32 outSize = static_cast<u32>(context.thisTimeOut_);
         u8* dst = buffer;
-        //Copy inflated data to scanline
+        // Copy inflated data to scanline
         while(0 < outSize && totalCount_ < totalSize_) {
             if(scanlineOffset <= 0 && filterFlag < 0) {
                 --outSize;
@@ -4129,7 +4090,7 @@ bool PNG::ChunkIDAT::decode(void* image)
             memcpy(scanline + scanlineOffset, dst, copySize);
             scanlineOffset += copySize;
 
-            //Scanline have been filled up, apply filter
+            // Scanline have been filled up, apply filter
             if(scanlineSize <= scanlineOffset) {
                 CPPIMG_ASSERT(scanlineSize == scanlineOffset);
                 CPPIMG_ASSERT(FilterType_None <= filterFlag && filterFlag <= FilterType_Paeth);
@@ -4296,7 +4257,7 @@ void PNG::ChunkIDAT::filter(u32 scanlineSize, s32 filterFlag, u8* scanline, u8* 
                 } else {
                     x = (xb <= xc) ? b : c;
                 }
-                //scanline[p] = clamp(x+scanline[p], 0, 255);
+                // scanline[p] = clamp(x+scanline[p], 0, 255);
                 scanline[p] = static_cast<u8>((x + scanline[p]) & 255);
             }
         }
@@ -4348,7 +4309,7 @@ bool PNG::checkCRC32(const Chunk& chunk, Stream& stream)
         remain -= size;
     }
 
-    //Check whether calculated crc equals loaded crc
+    // Check whether calculated crc equals loaded crc
     u32 readCrc = 0;
     s32 ret = (remain <= 0) ? stream.read(sizeof(u32), &readCrc) : 0;
     stream.seek(pos, SEEK_SET);
@@ -4362,7 +4323,7 @@ bool PNG::checkCRC32(const Chunk& chunk, Stream& stream)
 
 bool PNG::skipChunk(const Chunk& chunk, Stream& stream)
 {
-    u32 size = chunk.length_ + 4; //chunk data size + crc size
+    u32 size = chunk.length_ + 4; // chunk data size + crc size
     return stream.seek(size, SEEK_CUR);
 }
 
@@ -4828,7 +4789,7 @@ bool JPEG::readDHT(Context& context, const Segment& segment)
     u8 bits[HT_BITS_TABLE];
     s32 size = 2;
     while(size < segment.length_) {
-        u8 classAndId; //upper:precision, lower:id of huffman table
+        u8 classAndId; // upper:precision, lower:id of huffman table
         if(stream.read(1, &classAndId) <= 0) {
             return false;
         }
@@ -4848,7 +4809,7 @@ bool JPEG::readDHT(Context& context, const Segment& segment)
         size += HT_BITS_TABLE;
 
         HuffmanTable& table = context.huffman_[huffmanClass][id];
-        //Count number of elements
+        // Count number of elements
         table.number_ = 0;
         for(s32 i = 0; i < HT_BITS_TABLE; ++i) {
             table.number_ += bits[i];
@@ -4857,7 +4818,7 @@ bool JPEG::readDHT(Context& context, const Segment& segment)
             return false;
         }
 
-        //Generate size table
+        // Generate size table
         s32 k = 0;
         for(u8 i = 1; i <= HT_BITS_TABLE; ++i) {
             for(u8 j = 1; j <= bits[i - 1]; ++j, ++k) {
@@ -4865,7 +4826,7 @@ bool JPEG::readDHT(Context& context, const Segment& segment)
             }
         }
 
-        //Generate code table
+        // Generate code table
         k = 0;
         u16 code = 0;
         u8 si = table.size_[0];
@@ -4886,7 +4847,7 @@ bool JPEG::readDHT(Context& context, const Segment& segment)
         }
         size += table.number_;
 
-    } //while(size<segment.length_)
+    } // while(size<segment.length_)
     return size == segment.length_;
 }
 
@@ -5077,7 +5038,7 @@ bool JPEG::decode(Context& context)
                         return false;
                     }
                     if(MARKER_RST0 <= marker && marker <= MARKER_RST7) {
-                        //Reset DC
+                        // Reset DC
                         context.directCurrents_[0] = 0;
                         context.directCurrents_[1] = 0;
                         context.directCurrents_[2] = 0;
@@ -5151,7 +5112,7 @@ bool JPEG::decodeHuffmanBlock(Context& context, s32 component)
 {
     ByteStream& stream = context.byteStream_;
 
-    //DC
+    // DC
     s32 category = decodeHuffmanCode(context, 0, context.scan_.components_[component].getDCHuffman());
     if(category < 0) {
         return false;
@@ -5164,7 +5125,7 @@ bool JPEG::decodeHuffmanBlock(Context& context, s32 component)
     }
     context.dct_[0] = context.directCurrents_[component];
 
-    //AC
+    // AC
     for(s32 k = 1; k < BLOCK_SIZE;) {
         s32 runCategory = decodeHuffmanCode(context, 1, context.scan_.components_[component].getACHuffman());
         if(runCategory < 0) {
@@ -5187,7 +5148,7 @@ bool JPEG::decodeHuffmanBlock(Context& context, s32 component)
             return false;
         }
         if(BLOCK_SIZE <= (runLength + k)) {
-            //runLength = (BLOCK_SIZE - k - 1);
+            // runLength = (BLOCK_SIZE - k - 1);
             return false;
         }
         while(0 < runLength) {
@@ -5268,12 +5229,12 @@ void JPEG::inverseDCT(Context& context)
                 __m128i dct1 = _mm_cvtepi16_epi32(_mm_srli_si128(dct, 8));
 
                 const __m128i& tcsy = csy[y][v];
-                __m128i cl = _mm_mullo_epi16(tcsy, csx[x]); //lower 8 bits of tcsy*csx
-                __m128i ch = _mm_mulhi_epi16(tcsy, csx[x]); //upper 8 bits of tcsy*csx
+                __m128i cl = _mm_mullo_epi16(tcsy, csx[x]); // lower 8 bits of tcsy*csx
+                __m128i ch = _mm_mulhi_epi16(tcsy, csx[x]); // upper 8 bits of tcsy*csx
 
                 __m128i c0 = _mm_unpacklo_epi16(cl, ch);
                 __m128i c1 = _mm_unpackhi_epi16(cl, ch);
-                //Round fixed point values
+                // Round fixed point values
                 c0 = _mm_srai_epi32(_mm_add_epi32(c0, RoundOffset0), FIXED_POINT_SHIFT);
                 c1 = _mm_srai_epi32(_mm_add_epi32(c1, RoundOffset0), FIXED_POINT_SHIFT);
 
@@ -5287,12 +5248,12 @@ void JPEG::inverseDCT(Context& context)
             sum = _mm_hadd_epi32(sum, sum);
             sum = _mm_hadd_epi32(sum, sum);
 
-            //Round fixed point values
+            // Round fixed point values
             sum = _mm_add_epi32(_mm_srai_epi32(_mm_add_epi32(sum, RoundOffset1), FIXED_POINT_SHIFT2 + 2), LevelShift);
-            //sum = _mm_packs_epi32(sum, sum);
-            //sum = _mm_slli_si128(sum, 14);
-            //tblock = _mm_or_si128(tblock, sum);
-            //tblock = _mm_srli_si128(tblock, 2);
+            // sum = _mm_packs_epi32(sum, sum);
+            // sum = _mm_slli_si128(sum, 14);
+            // tblock = _mm_or_si128(tblock, sum);
+            // tblock = _mm_srli_si128(tblock, 2);
             block[x] = static_cast<u16>(_mm_cvtsi128_si32(sum));
         }
     }
@@ -5394,9 +5355,9 @@ void JPEG::toRGB(Context& context)
             s32 ty = C[index + 0] << FIXED_POINT_SHIFT2;
             s32 tcb = C[index + 1];
             s32 tcr = C[index + 2];
-            s32 tr = ty + fixedPointShift((tcr - 0x2000) * 0x166E, FIXED_POINT_SHIFT2);                           //Y + (Cr-128)*1.4020
-            s32 tg = ty - fixedPointShift((tcb - 0x2000) * 0x0581 + (tcr - 0x2000) * 0x0B6C, FIXED_POINT_SHIFT2); //Y - (Cb-128)*0.3441 - (Cbr-128)*0.7139;
-            s32 tb = ty + fixedPointShift((tcb - 0x2000) * 0x1C59, FIXED_POINT_SHIFT2);                           //Y - (Cb-128)*1.7718;
+            s32 tr = ty + fixedPointShift((tcr - 0x2000) * 0x166E, FIXED_POINT_SHIFT2);                           // Y + (Cr-128)*1.4020
+            s32 tg = ty - fixedPointShift((tcb - 0x2000) * 0x0581 + (tcr - 0x2000) * 0x0B6C, FIXED_POINT_SHIFT2); // Y - (Cb-128)*0.3441 - (Cbr-128)*0.7139;
+            s32 tb = ty + fixedPointShift((tcb - 0x2000) * 0x1C59, FIXED_POINT_SHIFT2);                           // Y - (Cb-128)*1.7718;
             tr = fixedPointRound(tr, FIXED_POINT_SHIFT);
             tg = fixedPointRound(tg, FIXED_POINT_SHIFT);
             tb = fixedPointRound(tb, FIXED_POINT_SHIFT);
@@ -5443,7 +5404,7 @@ void JPEG::filter(Context& context, s32 component)
                 }
             }
         }
-    } //for(s32 y=0;
+    } // for(s32 y=0;
 }
 
 //----------------------------------------------------
@@ -5786,12 +5747,12 @@ OpenEXR::Context::Status OpenEXR::Context::readAttribute(u32& flags, Stream& str
     AttributeType attributeType;
     Char str[MaxStringSize];
 
-    //Read attribute name
+    // Read attribute name
     if(OpenEXR::read(str, stream) <= 0) {
         return Error;
     }
     attributeName = findAttributeName(str);
-    //End of an attribute list
+    // End of an attribute list
     if(AttrName_End == attributeName) {
         return End;
     }
@@ -5800,7 +5761,7 @@ OpenEXR::Context::Status OpenEXR::Context::readAttribute(u32& flags, Stream& str
         return Success;
     }
 
-    //Read attribute type
+    // Read attribute type
     if(OpenEXR::read(str, stream) <= 0) {
         return Error;
     }
@@ -5905,7 +5866,7 @@ OpenEXR::Context::Status OpenEXR::Context::readAttribute(u32& flags, Stream& str
 
 void OpenEXR::Context::skipUnknownName(Stream& stream)
 {
-    //Skip type string
+    // Skip type string
     s32 length = 0;
     Char c;
     while(length < MaxStringSize) {
@@ -6188,7 +6149,7 @@ bool OpenEXR::Context::uncompressRLE(Stream& stream, s32 dstSize, u8* dst, u8* t
             return false;
         }
         ++in;
-        if(0 <= c) { //consecutive
+        if(0 <= c) { // consecutive
             s32 count = c + 1;
             u8 byte;
             if(stream.read(1, &byte) <= 0) {
@@ -6199,7 +6160,7 @@ bool OpenEXR::Context::uncompressRLE(Stream& stream, s32 dstSize, u8* dst, u8* t
                 s[0] = byte;
             }
 
-        } else { //non-consecutive
+        } else { // non-consecutive
             s32 count = -c;
             if(stream.read(count, s) <= 0) {
                 return false;
@@ -6420,11 +6381,13 @@ bool OpenEXR::read(Information& information, void* image, Stream& stream)
     if(MAGIC != magic) {
         return false;
     }
-    Auto<Context> context(CPPIMG_NEW Context);
+    Context* context = CPPIMG_NEW Context;
     if(!context->readVersion(stream)) {
+        CPPIMG_DELETE(context);
         return false;
     }
     if(!context->readHeader(stream)) {
+        CPPIMG_DELETE(context);
         return false;
     }
 
@@ -6432,13 +6395,16 @@ bool OpenEXR::read(Information& information, void* image, Stream& stream)
     information.height_ = context->header_.displayWindow_.yMax_ - context->header_.displayWindow_.yMin_ + 1;
     information.numChannels_ = context->header_.numChannels_;
     if(!context->header_.getColorType(information.colorType_)) {
+        CPPIMG_DELETE(context);
         return false;
     }
     context->header_.getTypes(information.types_);
     if(CPPIMG_NULL == image) {
+        CPPIMG_DELETE(context);
         return true;
     }
     if(!context->readOffsetTable(stream)) {
+        CPPIMG_DELETE(context);
         return false;
     }
     context->image_ = image;
@@ -6446,18 +6412,20 @@ bool OpenEXR::read(Information& information, void* image, Stream& stream)
 
     if(context->version_.isMultiPart()) {
     } else if(context->version_.isTile()) {
-    } else { //Scanline
+    } else { // Scanline
         if(!context->readScanlines(stream)) {
+            CPPIMG_DELETE(context);
             return false;
         }
     }
     seekSet.clear();
+    CPPIMG_DELETE(context);
     return true;
 }
 
 bool OpenEXR::write(Stream& stream, s32 width, s32 height, ColorType colorType, Type pixelType, const void* image)
 {
-    //#define CPPIMG_OPENEXR_USE_NOCOMPRESSION
+    // #define CPPIMG_OPENEXR_USE_NOCOMPRESSION
     CPPIMG_ASSERT(1 <= width);
     CPPIMG_ASSERT(1 <= height);
     CPPIMG_ASSERT(CPPIMG_NULL != image);
@@ -6470,7 +6438,7 @@ bool OpenEXR::write(Stream& stream, s32 width, s32 height, ColorType colorType, 
 
     u64 begin = stream.tell();
 
-    //Write common header
+    // Write common header
     u32 magic = MAGIC;
     if(stream.write(4, &magic) <= 0) {
         return false;
@@ -6480,12 +6448,12 @@ bool OpenEXR::write(Stream& stream, s32 width, s32 height, ColorType colorType, 
         return false;
     }
 
-    //Write channels
+    // Write channels
     if(writeChannels(stream, colorType, pixelType) <= 0) {
         return false;
     }
 
-    //Write compression
+    // Write compression
 #ifdef CPPIMG_OPENEXR_USE_NOCOMPRESSION
     u8 compression = NO_COMPRESSION;
 #else
@@ -6495,37 +6463,37 @@ bool OpenEXR::write(Stream& stream, s32 width, s32 height, ColorType colorType, 
         return false;
     }
 
-    //Write dataWindow
+    // Write dataWindow
     Box2i dataWindow = {0, 0, width - 1, height - 1};
     if(writeAttribute(stream, AttrName_DataWindow, AttrType_Box2i, sizeof(Box2i), &dataWindow) <= 0) {
         return false;
     }
 
-    //Write displayWindow
+    // Write displayWindow
     Box2i displayWindow = {0, 0, width - 1, height - 1};
     if(writeAttribute(stream, AttrName_DisplayWindow, AttrType_Box2i, sizeof(Box2i), &displayWindow) <= 0) {
         return false;
     }
 
-    //Write lineOrder
+    // Write lineOrder
     u8 lineOrder = INCREASING_Y;
     if(writeAttribute(stream, AttrName_LineOrder, AttrType_LineOrder, sizeof(u8), &lineOrder) <= 0) {
         return false;
     }
 
-    //Write pixelAspectRatio
+    // Write pixelAspectRatio
     f32 pixelRatio = 1.0f;
     if(writeAttribute(stream, AttrName_PixelAspectRatio, AttrType_Float, sizeof(f32), &pixelRatio) <= 0) {
         return false;
     }
 
-    //Write screenWindowCenter
+    // Write screenWindowCenter
     Vector2f screenWindowCenter = {0.0f, 0.0f};
     if(writeAttribute(stream, AttrName_ScreenWindowCenter, AttrType_V2f, sizeof(Vector2f), &screenWindowCenter) <= 0) {
         return false;
     }
 
-    //Write screenWindowWidth
+    // Write screenWindowWidth
     f32 screenWindotWidth = 1.0f;
     if(writeAttribute(stream, AttrName_ScreenWindowWidth, AttrType_Float, sizeof(f32), &screenWindotWidth) <= 0) {
         return false;
@@ -6748,7 +6716,7 @@ bool OpenEXR::writeScanlines_NO_COMPRESSION(WriteContext& context, u64 offset, s
 
 bool OpenEXR::writeScanlines_ZIP_COMPRESSION(WriteContext& context, u64 offset, s32 width, s32 height, ColorType colorType, Type pixelType, s32 linesPerBlock, const void* data)
 {
-    //#define CPPIMG_OPENEXR_DEBUG_ZIP
+    // #define CPPIMG_OPENEXR_DEBUG_ZIP
     static const s8 ChannelOrder_GRAY[] = {0};
     static const s8 ChannelOrder_RGB[] = {0, 1, 2};
     static const s8 ChannelOrder_RGBA[] = {0, 1, 2, 3};
@@ -7106,13 +7074,13 @@ bool DDS::read(TextureDesc& desc, void* image, Stream& stream)
         return false;
     }
 
-    //if(static_cast<u32>(DDSD::REQUIRED) != (static_cast<u32>(DDSD::REQUIRED)&header.flags_)){
-    //    return false;
-    //}
+    // if(static_cast<u32>(DDSD::REQUIRED) != (static_cast<u32>(DDSD::REQUIRED)&header.flags_)){
+    //     return false;
+    // }
 
-    //if(static_cast<u32>(DDSCAPS::TEXTURE) != (static_cast<u32>(DDSCAPS::TEXTURE)&header.caps_)){
-    //    return false;
-    //}
+    // if(static_cast<u32>(DDSCAPS::TEXTURE) != (static_cast<u32>(DDSCAPS::TEXTURE)&header.caps_)){
+    //     return false;
+    // }
     if(header.width_ <= 0 || header.height_ <= 0) {
         return false;
     }
@@ -7132,7 +7100,7 @@ bool DDS::read(TextureDesc& desc, void* image, Stream& stream)
 
     if(static_cast<u32>(DDPF::FOURCC) == (static_cast<u32>(DDPF::FOURCC) & header.ddspf_.flags_)
        && header.ddspf_.fourCC_ == DDS_DX10) {
-        //Use dxt10 header
+        // Use dxt10 header
         DDS_HEADER_DXT10 header10;
         if(stream.read(sizeof(DDS_HEADER_DXT10), &header10) < 0) {
             return false;
@@ -7425,7 +7393,7 @@ DDS::Format DDS::selectFormat(const DDS_PIXELFORMAT& ddspf)
             break;
 
         case 8:
-            //Not support A4L4
+            // Not support A4L4
             if(isSetMask(ddspf, 0x0000000FU, 0x00000000U, 0x00000000U, 0x000000F0U)) {
                 return Format::UNKNOWN;
             }
@@ -7444,7 +7412,7 @@ DDS::Format DDS::selectFormat(const DDS_PIXELFORMAT& ddspf)
 
     } else if(isSet(DDPF::FOURCC, ddspf.flags_)) {
 
-        //Compressed
+        // Compressed
         switch(static_cast<DXFOURCC>(ddspf.fourCC_)) {
         case DXFOURCC::DXT1:
             return Format::BC1_UNORM;
@@ -7478,7 +7446,7 @@ DDS::Format DDS::selectFormat(const DDS_PIXELFORMAT& ddspf)
         case DXFOURCC::BC7U:
             return Format::BC7_UNORM;
 
-#if 0 //old formats
+#if 0 // old formats
         case D3DFMT_A16B16G16R16:
             return Data_R16G16B16A16_UNorm;
 
