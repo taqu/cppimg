@@ -2319,6 +2319,7 @@ public:
     {
         bool isCompressed() const;
         u32 calcBlockSize() const;
+        u32 calcLinearSize() const;
         u32 calcPitchSize() const;
         u32 calcPixelSize() const;
         size_t calcCompressed() const;
@@ -6910,6 +6911,7 @@ namespace
         return maximum(size >> 1, 0x01U);
     }
 } // namespace
+
 u32 DDS::TextureDesc::calcBlockSize() const
 {
     u32 blockSize = 0;
@@ -6938,6 +6940,12 @@ u32 DDS::TextureDesc::calcBlockSize() const
         break;
     }
     return blockSize;
+}
+
+u32 DDS::TextureDesc::calcLinearSize() const
+{
+    u32 blockSize = calcBlockSize();
+    return roundUp(width_) * roundUp(height_) * roundUp(depth_) * blockSize;
 }
 
 u32 DDS::TextureDesc::calcPitchSize() const
@@ -7186,7 +7194,7 @@ bool DDS::read(TextureDesc& desc, void* image, Stream& stream)
             desc.pitch_ = header.linearSize_;
         } else {
             u32 blockSize = desc.calcBlockSize();
-            desc.pitch_ = roundUp(desc.width_) * roundUp(desc.height_) * roundUp(desc.width_) * blockSize;
+            desc.pitch_ = roundUp(desc.width_) * roundUp(desc.height_) * roundUp(desc.depth_) * blockSize;
         }
     } else {
         if(static_cast<u32>(DDSD::PITCH) == (static_cast<u32>(DDSD::PITCH) & header.flags_)) {
@@ -7262,7 +7270,7 @@ bool DDS::write(Stream& stream, const TextureDesc& desc, const void* image)
 
     if(desc.isCompressed()) {
         header.flags_ |= DDSD::LINEARSIZE;
-        header.linearSize_ = desc.calcBlockSize();
+        header.linearSize_ = desc.calcLinearSize();
     } else {
         header.flags_ |= DDSD::PITCH;
         header.linearSize_ = desc.calcPitchSize();
