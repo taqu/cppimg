@@ -46,6 +46,7 @@ For more information, please refer to <http://unlicense.org>
 USAGE:
 Put '#define CPPIMG_IMPLEMENTATION' before including this file to create the implementation.
 Put '#define CPPIMG_DISABLE_PNG' to disable support for PNG.
+Put '#define CPPIMG_DISABLE_OPENEXR' to disable support for OpenEXR
 */
 #include <cassert>
 #include <cmath>
@@ -1447,7 +1448,7 @@ public:
 
         s32 getSize(s32 channel) const
         {
-            return cppimg::getSize(STATIC_CAST(Type, types_[channel]));
+            return cppimg::getSize(static_cast<Type>(types_[channel]));
         }
 
         s32 width_;
@@ -2649,7 +2650,7 @@ s32 getBytesPerPixel(s32 channels, const s32* types)
     CPPIMG_ASSERT(CPPIMG_NULL != types);
     s32 size = 0;
     for(s32 i = 0; i < channels; ++i) {
-        size += getSize(STATIC_CAST(Type, types[i]));
+        size += getSize(static_cast<Type>(types[i]));
     }
     return size;
 }
@@ -2714,7 +2715,7 @@ void convert(s32 width, s32 height, s32 channels, u8* dst, const void* src, cons
 
     s32 sizes[MaxChannels];
     for(s32 i = 0; i < channels; ++i) {
-        sizes[i] = getSize(STATIC_CAST(Type, types[i]));
+        sizes[i] = getSize(static_cast<Type>(types[i]));
     }
     s32 srcBytesPerPixel = getBytesPerPixel(channels, types);
 
@@ -5448,6 +5449,7 @@ void JPEG::filter(Context& context, s32 component)
     } // for(s32 y=0;
 }
 
+#    ifndef CPPIMG_DISABLE_OPENEXR
 //----------------------------------------------------
 //---
 //--- OpenEXR
@@ -6724,14 +6726,14 @@ bool OpenEXR::writeScanlines_NO_COMPRESSION(WriteContext& context, u64 offset, s
     getChannelInformation(offsets, colorType, pixelType);
 
     context.numScanlines_ = height;
-    context.offsetTable_ = REINTERPRET_CAST(u64*, CPPIMG_MALLOC(sizeof(u64) * context.numScanlines_));
+    context.offsetTable_ = reinterpret_cast<u64*>(CPPIMG_MALLOC(sizeof(u64) * context.numScanlines_));
     offset += sizeof(u64) * context.numScanlines_;
     for(s32 i = 0; i < height; ++i) {
         context.offsetTable_[i] = offset;
         offset += bytesPerLine + sizeof(s32);
     }
     context.streamBuffer_.setIncrements(bytesPerLine);
-    context.streamBuffer_.reserve((STATIC_CAST(s64, bytesPerLine) + sizeof(s32) * 2) * height);
+    context.streamBuffer_.reserve((static_cast<s64>(bytesPerLine) + sizeof(s32) * 2) * height);
 
     for(s32 i = 0; i < height; ++i) {
         if(!context.write(sizeof(s32), &i)) {
@@ -6741,7 +6743,7 @@ bool OpenEXR::writeScanlines_NO_COMPRESSION(WriteContext& context, u64 offset, s
             return false;
         }
 
-        const u8* line = REINTERPRET_CAST(const u8*, data) + i * bytesPerChunk;
+        const u8* line = reinterpret_cast<const u8*>(data) + i * bytesPerChunk;
         for(s32 j = 0; j < numChannels; ++j) {
             const u8* pixel = line + offsets[j];
             for(s32 k = 0; k < width; ++k) {
@@ -6797,10 +6799,10 @@ bool OpenEXR::writeScanlines_ZIP_COMPRESSION(WriteContext& context, u64 offset, 
     }
 
     context.numScanlines_ = numBlocks;
-    context.offsetTable_ = REINTERPRET_CAST(u64*, CPPIMG_MALLOC(sizeof(u64) * context.numScanlines_));
+    context.offsetTable_ = reinterpret_cast<u64*>(CPPIMG_MALLOC(sizeof(u64) * context.numScanlines_));
     offset += sizeof(u64) * context.numScanlines_;
     context.streamBuffer_.setIncrements(bytesPerChunk);
-    context.streamBuffer_.reserve((STATIC_CAST(s64, bytesPerChunk) + sizeof(s32) * 2) * numBlocks);
+    context.streamBuffer_.reserve((static_cast<s64>(bytesPerChunk) + sizeof(s32) * 2) * numBlocks);
 
     s32 offsets[MaxOutChannels];
     getChannelInformation(offsets, colorType, pixelType);
@@ -6812,7 +6814,7 @@ bool OpenEXR::writeScanlines_ZIP_COMPRESSION(WriteContext& context, u64 offset, 
 #ifdef CPPIMG_OPENEXR_DEBUG_ZIP
     Buffer dst2(bytesPerChunk);
 #endif
-    const u8* src = REINTERPRET_CAST(const u8*, data);
+    const u8* src = reinterpret_cast<const u8*>(data);
     for(s32 i = 0, next = 0; i < numBlocks; ++i) {
         s32 prev = next;
         next += linesPerBlock;
@@ -6874,6 +6876,7 @@ bool OpenEXR::writeScanlines_ZIP_COMPRESSION(WriteContext& context, u64 offset, 
     szlib::termDeflate(&zcontext);
     return result;
 }
+#endif
 
 //----------------------------------------------------
 //--- DDS
